@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2016-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #pragma once
 
@@ -14,6 +13,8 @@
 #include <folly/Range.h>
 #include <folly/hash/SpookyHashV2.h>
 #include <folly/io/IOBuf.h>
+
+#include "mcrouter/lib/HashFunctionType.h"
 
 namespace carbon {
 
@@ -129,11 +130,36 @@ class Keys {
     return key_;
   }
 
+  // Usage of this method requires user to call `update()` manually on change of
+  // the underlying storage.
+  Storage& rawUnsafe() {
+    return key_;
+  }
+  const Storage& rawUnsafe() const {
+    return key_;
+  }
+
+  void update();
+
+  bool reuseLastHash(size_t size, HashFunctionType typeId) const {
+    return (
+        lastHash_.size_ > 0 && size == lastHash_.size_ &&
+        typeId == lastHash_.typeId_);
+  }
+
+  size_t getLastHash() const {
+    return lastHash_.hash_;
+  }
+
+  void setLastHash(size_t hash, size_t size, HashFunctionType typeId) const {
+    lastHash_.hash_ = hash;
+    lastHash_.size_ = size;
+    lastHash_.typeId_ = typeId;
+  }
+
  private:
   static constexpr bool usingStringStorage =
       std::is_same<Storage, std::string>::value;
-
-  void update();
 
   // Assumes that this->key_ has been set to the desired value that StringPiece
   // members of *this should point into.
@@ -152,6 +178,8 @@ class Keys {
     routingPrefix_ = other.routingPrefix_;
     routingKey_ = other.routingKey_;
     routingKeyHash_ = other.routingKeyHash_;
+    lastHash_.size_ = other.lastHash_.size_;
+    lastHash_.hash_ = other.lastHash_.hash_;
   }
 
   static size_t size(const folly::IOBuf& buf) {
@@ -181,8 +209,15 @@ class Keys {
   folly::StringPiece routingPrefix_;
   folly::StringPiece routingKey_;
   mutable uint32_t routingKeyHash_{0};
+
+  struct HashData {
+    size_t size_{0};
+    size_t hash_{0};
+    HashFunctionType typeId_{HashFunctionType::Unknown};
+  };
+  mutable HashData lastHash_;
 };
 
-} // carbon
+} // namespace carbon
 
 #include "Keys-inl.h"

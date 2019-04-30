@@ -1,16 +1,15 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #pragma once
 
 #include <utility>
 
 #include "mcrouter/McrouterFiberContext.h"
-#include "mcrouter/lib/Operation.h"
+#include "mcrouter/lib/Reply.h"
 #include "mcrouter/lib/RouteHandleTraverser.h"
 #include "mcrouter/lib/carbon/RoutingGroups.h"
 #include "mcrouter/lib/config/RouteHandleBuilder.h"
@@ -38,10 +37,10 @@ class AsynclogRoute {
       : rh_(std::move(rh)), asynclogName_(std::move(asynclogName)) {}
 
   template <class Request>
-  void traverse(
+  bool traverse(
       const Request& req,
       const RouteHandleTraverser<RouteHandleIf>& t) const {
-    t(*rh_, req);
+    return t(*rh_, req);
   }
 
   memcache::McDeleteReply route(const memcache::McDeleteRequest& req) const {

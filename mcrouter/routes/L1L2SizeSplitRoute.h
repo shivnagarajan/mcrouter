@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2017-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #pragma once
 
@@ -17,7 +16,8 @@
 #include <folly/Range.h>
 #include <folly/io/IOBuf.h>
 
-#include "mcrouter/lib/Operation.h"
+#include "mcrouter/lib/McKey.h"
+#include "mcrouter/lib/Reply.h"
 #include "mcrouter/lib/RouteHandleTraverser.h"
 #include "mcrouter/lib/network/gen/MemcacheMessages.h"
 #include "mcrouter/lib/network/gen/MemcacheRouteHandleIf.h"
@@ -33,12 +33,6 @@ template <class RouteHandleIf>
 class RouteHandleFactory;
 
 namespace mcrouter {
-
-namespace detail {
-constexpr size_t numDigitsBase10(uint64_t n) {
-  return n < 10 ? 1 : 1 + numDigitsBase10(n / 10);
-}
-} // namespace detail
 
 /**
  * This route handle is intended to be used for asymmetric data storage.
@@ -58,11 +52,13 @@ class L1L2SizeSplitRoute {
   }
 
   template <class Request>
-  void traverse(
+  bool traverse(
       const Request& req,
       const RouteHandleTraverser<MemcacheRouteHandleIf>& t) const {
-    t(*l1_, req);
-    t(*l2_, req);
+    if (t(*l1_, req)) {
+      return true;
+    }
+    return t(*l2_, req);
   }
 
   L1L2SizeSplitRoute(

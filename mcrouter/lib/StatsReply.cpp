@@ -1,15 +1,14 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #include "StatsReply.h"
 
 #include <folly/io/IOBuf.h>
 
-#include "mcrouter/lib/network/gen/Memcache.h"
+#include "mcrouter/lib/network/gen/MemcacheMessages.h"
 
 namespace facebook {
 namespace memcache {
@@ -21,7 +20,7 @@ McStatsReply StatsReply::getReply() {
    * "STAT stat1 value1\r\nSTAT stat2 value2\r\n..."
    */
 
-  McStatsReply reply(mc_res_ok);
+  McStatsReply reply(carbon::Result::OK);
   std::vector<std::string> statsList;
 
   for (const auto& s : stats_) {

@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #include <memory>
 #include <vector>
@@ -13,7 +12,7 @@
 #include <folly/dynamic.h>
 
 #include "mcrouter/lib/FailoverErrorsSettings.h"
-#include "mcrouter/lib/network/gen/Memcache.h"
+#include "mcrouter/lib/network/gen/MemcacheMessages.h"
 #include "mcrouter/routes/LatestRoute.h"
 #include "mcrouter/routes/McrouterRouteHandle.h"
 #include "mcrouter/routes/test/RouteHandleTestUtil.h"
@@ -26,10 +25,10 @@ using std::make_shared;
 
 TEST(latestRouteTest, one) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "a")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "c")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "d")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "c")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "d")),
   };
 
   mockFiberContext();
@@ -58,16 +57,16 @@ TEST(latestRouteTest, one) {
   test_handles[third]->setTko();
   /* three boxes are now TKO, we hit the failover limit */
   auto reply = rh->route(McGetRequest("key"));
-  EXPECT_EQ(mc_res_tko, reply.result());
+  EXPECT_EQ(carbon::Result::TKO, reply.result());
 }
 
 TEST(latestRouteTest, weights) {
   HostidMock hostidMock(123);
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "a")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "c")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "d")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "c")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "d")),
   };
 
   mockFiberContext();
@@ -96,10 +95,10 @@ TEST(latestRouteTest, weights) {
 
 TEST(latestRouteTest, thread_local_failover) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "a")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "c")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "d")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "c")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "d")),
   };
 
   mockFiberContext();
@@ -148,10 +147,10 @@ TEST(latestRouteTest, thread_local_failover) {
 
 TEST(latestRouteTest, leasePairingNoName) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "a")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "c")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "d")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "c")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "d")),
   };
 
   mockFiberContext();
@@ -166,10 +165,10 @@ TEST(latestRouteTest, leasePairingNoName) {
 
 TEST(latestRouteTest, leasePairingWithName) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "a")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "c")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "d")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "c")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "d")),
   };
 
   mockFiberContext();

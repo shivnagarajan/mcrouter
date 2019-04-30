@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #include <memory>
 #include <vector>
@@ -12,7 +11,7 @@
 
 #include <folly/dynamic.h>
 
-#include "mcrouter/lib/network/gen/Memcache.h"
+#include "mcrouter/lib/network/gen/MemcacheMessages.h"
 #include "mcrouter/lib/test/RouteHandleTestUtil.h"
 #include "mcrouter/lib/test/TestRouteHandle.h"
 #include "mcrouter/routes/FailoverRateLimiter.h"
@@ -51,7 +50,7 @@ McrouterRouteHandlePtr makeFailoverRouteInOrder(
 
 TEST(failoverRouteTest, nofailover) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "a"))};
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "a"))};
 
   mockFiberContext();
   auto rh = makeFailoverRouteInOrder(
@@ -66,9 +65,9 @@ TEST(failoverRouteTest, nofailover) {
 
 TEST(failoverRouteTest, success) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "a")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "c"))};
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "c"))};
 
   mockFiberContext();
   auto rh = makeFailoverRouteInOrder(
@@ -83,9 +82,9 @@ TEST(failoverRouteTest, success) {
 
 TEST(failoverRouteTest, once) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "a")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "c"))};
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "c"))};
 
   mockFiberContext();
   auto rh = makeFailoverRouteInOrder(
@@ -100,9 +99,9 @@ TEST(failoverRouteTest, once) {
 
 TEST(failoverRouteTest, twice) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "a")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "c"))};
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "c"))};
 
   mockFiberContext();
   auto rh = makeFailoverRouteInOrder(
@@ -117,9 +116,9 @@ TEST(failoverRouteTest, twice) {
 
 TEST(failoverRouteTest, fail) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "a")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "c"))};
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "c"))};
 
   mockFiberContext();
   auto rh = makeFailoverRouteInOrder(
@@ -136,9 +135,11 @@ TEST(failoverRouteTest, fail) {
 
 TEST(failoverRouteTest, customErrorOnce) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_remote_error, "a")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_local_error, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "c"))};
+      make_shared<TestHandle>(
+          GetRouteTestData(carbon::Result::REMOTE_ERROR, "a")),
+      make_shared<TestHandle>(
+          GetRouteTestData(carbon::Result::LOCAL_ERROR, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "c"))};
 
   mockFiberContext();
   auto rh = makeFailoverRouteInOrder(
@@ -153,9 +154,11 @@ TEST(failoverRouteTest, customErrorOnce) {
 
 TEST(failoverRouteTest, customErrorTwice) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_remote_error, "a")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_local_error, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "c"))};
+      make_shared<TestHandle>(
+          GetRouteTestData(carbon::Result::REMOTE_ERROR, "a")),
+      make_shared<TestHandle>(
+          GetRouteTestData(carbon::Result::LOCAL_ERROR, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "c"))};
 
   mockFiberContext();
   auto rh = makeFailoverRouteInOrder(
@@ -171,9 +174,10 @@ TEST(failoverRouteTest, customErrorTwice) {
 
 TEST(failoverRouteTest, customErrorUpdate) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(UpdateRouteTestData(mc_res_remote_error)),
-      make_shared<TestHandle>(UpdateRouteTestData(mc_res_local_error)),
-      make_shared<TestHandle>(UpdateRouteTestData(mc_res_found))};
+      make_shared<TestHandle>(
+          UpdateRouteTestData(carbon::Result::REMOTE_ERROR)),
+      make_shared<TestHandle>(UpdateRouteTestData(carbon::Result::LOCAL_ERROR)),
+      make_shared<TestHandle>(UpdateRouteTestData(carbon::Result::FOUND))};
 
   mockFiberContext();
   auto rh = makeFailoverRouteInOrder(
@@ -185,14 +189,16 @@ TEST(failoverRouteTest, customErrorUpdate) {
   McSetRequest req("0");
   req.value() = folly::IOBuf(folly::IOBuf::COPY_BUFFER, "value");
   auto reply = rh->route(std::move(req));
-  EXPECT_EQ(mc_res_local_error, reply.result());
+  EXPECT_EQ(carbon::Result::LOCAL_ERROR, reply.result());
 }
 
 TEST(failoverRouteTest, separateErrorsGet) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_remote_error, "a")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_local_error, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "c"))};
+      make_shared<TestHandle>(
+          GetRouteTestData(carbon::Result::REMOTE_ERROR, "a")),
+      make_shared<TestHandle>(
+          GetRouteTestData(carbon::Result::LOCAL_ERROR, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "c"))};
 
   mockFiberContext();
   auto rh = makeFailoverRouteInOrder(
@@ -210,9 +216,10 @@ TEST(failoverRouteTest, separateErrorsGet) {
 
 TEST(failoverRouteTest, separateErrorsUpdate) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(UpdateRouteTestData(mc_res_remote_error)),
-      make_shared<TestHandle>(UpdateRouteTestData(mc_res_local_error)),
-      make_shared<TestHandle>(UpdateRouteTestData(mc_res_stored))};
+      make_shared<TestHandle>(
+          UpdateRouteTestData(carbon::Result::REMOTE_ERROR)),
+      make_shared<TestHandle>(UpdateRouteTestData(carbon::Result::LOCAL_ERROR)),
+      make_shared<TestHandle>(UpdateRouteTestData(carbon::Result::STORED))};
 
   mockFiberContext();
   auto rh = makeFailoverRouteInOrder(
@@ -228,27 +235,28 @@ TEST(failoverRouteTest, separateErrorsUpdate) {
     McSetRequest req("0");
     req.value() = folly::IOBuf(folly::IOBuf::COPY_BUFFER, "value");
     auto reply1 = rh->route(std::move(req));
-    EXPECT_EQ(mc_res_stored, reply1.result());
+    EXPECT_EQ(carbon::Result::STORED, reply1.result());
   }
   {
     McAppendRequest req("0");
     req.value() = folly::IOBuf(folly::IOBuf::COPY_BUFFER, "value");
     auto reply2 = rh->route(std::move(req));
-    EXPECT_EQ(mc_res_stored, reply2.result());
+    EXPECT_EQ(carbon::Result::STORED, reply2.result());
   }
   {
     McPrependRequest req("0");
     req.value() = folly::IOBuf(folly::IOBuf::COPY_BUFFER, "value");
     auto reply3 = rh->route(std::move(req));
-    EXPECT_EQ(mc_res_stored, reply3.result());
+    EXPECT_EQ(carbon::Result::STORED, reply3.result());
   }
 }
 
 TEST(failoverRouteTest, separateErrorsDelete) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(DeleteRouteTestData(mc_res_local_error)),
-      make_shared<TestHandle>(DeleteRouteTestData(mc_res_remote_error)),
-      make_shared<TestHandle>(DeleteRouteTestData(mc_res_deleted))};
+      make_shared<TestHandle>(DeleteRouteTestData(carbon::Result::LOCAL_ERROR)),
+      make_shared<TestHandle>(
+          DeleteRouteTestData(carbon::Result::REMOTE_ERROR)),
+      make_shared<TestHandle>(DeleteRouteTestData(carbon::Result::DELETED))};
 
   mockFiberContext();
   auto rh = makeFailoverRouteInOrder(
@@ -261,13 +269,13 @@ TEST(failoverRouteTest, separateErrorsDelete) {
       /* failoverTagging */ false);
 
   auto reply = rh->route(McDeleteRequest("0"));
-  EXPECT_EQ(mc_res_remote_error, reply.result());
+  EXPECT_EQ(carbon::Result::REMOTE_ERROR, reply.result());
 }
 
 TEST(failoverRouteTest, rateLimit) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "a")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "b"))};
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "b"))};
 
   mockFiberContext();
   auto rh = makeFailoverRouteInOrder(
@@ -278,23 +286,23 @@ TEST(failoverRouteTest, rateLimit) {
 
   // tokens: 1
   auto reply1 = rh->route(McGetRequest("0"));
-  EXPECT_EQ(mc_res_found, reply1.result());
+  EXPECT_EQ(carbon::Result::FOUND, reply1.result());
   // tokens: 0
   auto reply2 = rh->route(McGetRequest("0"));
-  EXPECT_EQ(mc_res_timeout, reply2.result());
+  EXPECT_EQ(carbon::Result::TIMEOUT, reply2.result());
   // tokens: 0.5
   auto reply3 = rh->route(McGetRequest("0"));
-  EXPECT_EQ(mc_res_found, reply3.result());
+  EXPECT_EQ(carbon::Result::FOUND, reply3.result());
   // tokens: 0
   auto reply4 = rh->route(McGetRequest("0"));
-  EXPECT_EQ(mc_res_timeout, reply4.result());
+  EXPECT_EQ(carbon::Result::TIMEOUT, reply4.result());
 }
 
 TEST(failoverRouteTest, leastFailuresNoFailover) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "a")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "c"))};
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "c"))};
 
   mockFiberContext();
   folly::dynamic json =
@@ -314,9 +322,9 @@ TEST(failoverRouteTest, leastFailuresNoFailover) {
 
 TEST(failoverRouteTest, leastFailuresFailoverOnce) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "a")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "c"))};
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "c"))};
 
   mockFiberContext();
   folly::dynamic json =
@@ -336,9 +344,9 @@ TEST(failoverRouteTest, leastFailuresFailoverOnce) {
 
 TEST(failoverRouteTest, leastFailuresFailoverTwice) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "a")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "c"))};
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "c"))};
 
   mockFiberContext();
   folly::dynamic json =
@@ -358,10 +366,10 @@ TEST(failoverRouteTest, leastFailuresFailoverTwice) {
 
 TEST(failoverRouteTest, leastFailuresLastSucceeds) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "a")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "c")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "d"))};
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "c")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "d"))};
 
   mockFiberContext();
   folly::dynamic json =
@@ -393,10 +401,10 @@ TEST(failoverRouteTest, leastFailuresLastSucceeds) {
 
 TEST(failoverRouteTest, leastFailuresCycle) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "a")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "c")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "d"))};
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "c")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "d"))};
 
   mockFiberContext();
   folly::dynamic json =
@@ -431,9 +439,9 @@ TEST(failoverRouteTest, leastFailuresCycle) {
 
 TEST(failoverRouteTest, leastFailuresFailAll) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "a")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "c"))};
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "c"))};
 
   mockFiberContext();
   folly::dynamic json =
@@ -453,9 +461,9 @@ TEST(failoverRouteTest, leastFailuresFailAll) {
 
 TEST(failoverRouteTest, leastFailuresFailAllLimit) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "a")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_timeout, "c"))};
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "c"))};
 
   mockFiberContext();
   folly::dynamic json =
@@ -476,16 +484,16 @@ TEST(failoverRouteTest, leastFailuresFailAllLimit) {
 TEST(failoverRouteTest, leastFailuresComplex) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
       make_shared<TestHandle>(
-          GetRouteTestData(mc_res_timeout, "a"),
-          UpdateRouteTestData(mc_res_timeout),
+          GetRouteTestData(carbon::Result::TIMEOUT, "a"),
+          UpdateRouteTestData(carbon::Result::TIMEOUT),
           DeleteRouteTestData()),
       make_shared<TestHandle>(
-          GetRouteTestData(mc_res_timeout, "b"),
-          UpdateRouteTestData(mc_res_stored),
+          GetRouteTestData(carbon::Result::TIMEOUT, "b"),
+          UpdateRouteTestData(carbon::Result::STORED),
           DeleteRouteTestData()),
       make_shared<TestHandle>(
-          GetRouteTestData(mc_res_timeout, "c"),
-          UpdateRouteTestData(mc_res_timeout),
+          GetRouteTestData(carbon::Result::TIMEOUT, "c"),
+          UpdateRouteTestData(carbon::Result::TIMEOUT),
           DeleteRouteTestData())};
 
   mockFiberContext();

@@ -3,7 +3,6 @@ SUBDIRS = cpp_unit_tests .
 TESTS = \
   ../lib/config/test/mcrouter_config_test \
   ../lib/fbi/cpp/test/mcrouter_fbi_cpp_test \
-  ../lib/fbi/test/mcrouter_fbi_hash_test \
   ../lib/fbi/test/mcrouter_fbi_test \
   ../lib/test/mcrouter_lib_test \
   ../routes/test/mcrouter_routes_test \
@@ -53,7 +52,6 @@ TESTS += \
   test_slow_warmup.py \
   test_tko_inactive.py \
   test_tko_reconfigure.py \
-  test_umbrella_server.py \
   test_validate_config.py \
   test_warmup.py \
   test_wch3.py

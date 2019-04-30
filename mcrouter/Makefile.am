@@ -41,6 +41,7 @@ libmcroutercore_a_SOURCES = \
   FileDataProvider.h \
   FileObserver.cpp \
   FileObserver.h \
+  ForEachPossibleClient.h \
   flavor.cpp \
   flavor.h \
   LeaseTokenMap.cpp \
@@ -76,8 +77,10 @@ libmcroutercore_a_SOURCES = \
   ProxyConfigBuilder.cpp \
   ProxyConfigBuilder.h \
   ProxyDestination-inl.h \
-  ProxyDestination.cpp \
   ProxyDestination.h \
+  ProxyDestinationBase.cpp \
+  ProxyDestinationBase.h \
+  ProxyDestinationMap-inl.h \
   ProxyDestinationMap.cpp \
   ProxyDestinationMap.h \
   ProxyRequestContext.cpp \
@@ -117,6 +120,8 @@ libmcroutercore_a_SOURCES = \
   routes/FailoverRoute.h \
   routes/FailoverWithExptimeRouteFactory.h \
   routes/HostIdRouteFactory.h \
+  routes/KeySplitRoute.cpp \
+  routes/KeySplitRoute.h \
   routes/L1L2CacheRouteFactory.h \
   routes/L1L2SizeSplitRoute.cpp \
   routes/L1L2SizeSplitRoute.h \
@@ -169,6 +174,8 @@ libmcroutercore_a_SOURCES = \
   routes/SlowWarmupRoute.h \
   routes/SlowWarmUpRouteSettings.cpp \
   routes/SlowWarmupRouteSettings.h \
+  routes/StagingRoute.cpp \
+  routes/StagingRoute.h \
   routes/TimeProviderFunc.h \
   routes/WarmUpRoute.cpp \
   routes/WarmUpRoute.h \
@@ -195,19 +202,37 @@ mcrouter_SOURCES = \
   Server-inl.h \
   Server.h \
   ServerOnRequest.h \
+  StandaloneConfig.cpp \
+  StandaloneConfig.h \
+  StandaloneUtils.cpp \
+  StandaloneUtils.h \
   standalone_options.h \
   standalone_options_list.h
 
 libmcroutercore_a_CPPFLAGS = -I..
 
-mcrouter_LDADD = libmcroutercore.a lib/libmcrouter.a
+# Link order matters.
+mcrouter_LDADD = \
+  libmcroutercore.a \
+  lib/libmcrouter.a \
+  -lthriftcpp2 \
+  -ltransport \
+  -lthriftprotocol \
+  -lReactiveSocket \
+  -lyarpl \
+  -lasync \
+  -lconcurrency \
+  -lprotocol \
+  -lthrift-core \
+  -lwangle \
+  -lfolly
+
 mcrouter_CPPFLAGS = -I..
 
 clean-local:
-	-rm -f lib/network/gen-cpp2/*.h \
-	       lib/network/gen-cpp2/*.cpp \
-	       lib/network/gen-cpp2/*.o \
-	       lib/network/gen-cpp2/*.tcc
+	-rm -rf lib/network/gen-cpp2/ \
+	        lib/carbon/gen-cpp2/
 
 distclean-local:
-	-rm -rf lib/network/gen-cpp2/
+	-rm -rf lib/network/gen-cpp2/ \
+		lib/carbon/gen-cpp2/

@@ -29,6 +29,14 @@ MCROUTER_OPTION_STRING(
     "Name of the carbon router to use")
 
 MCROUTER_OPTION_OTHER(
+    std::vector<std::string>,
+    listen_addresses,
+    ,
+    "listen-addresses",
+    no_short,
+    "Address(es) to listen on (comma separated)")
+
+MCROUTER_OPTION_OTHER(
     std::vector<uint16_t>,
     ports,
     ,
@@ -49,6 +57,41 @@ MCROUTER_OPTION_STRING(
   "tls-ticket-key-seed-path", no_short,
   "Path to file containing JSON object for old, current, and new seeds"
   " used to generate TLS ticket keys")
+
+MCROUTER_OPTION_TOGGLE(
+    ssl_require_peer_certs,
+    false,
+    "ssl-require-peer-certs",
+    no_short,
+    "If enabled, clients must present valid certificates when using ssl")
+
+MCROUTER_OPTION_STRING(
+    server_pem_cert_path,
+    "", // this may get overwritten by finalizeOptions
+    "server-pem-cert-path",
+    no_short,
+    "Path of pem-style server certificate for ssl.")
+
+MCROUTER_OPTION_STRING(
+    server_pem_key_path,
+    "", // this may get overwritten by finalizeOptions
+    "server-pem-key-path",
+    no_short,
+    "Path of pem-style server key for ssl.")
+
+MCROUTER_OPTION_STRING(
+    server_pem_ca_path,
+    MCROUTER_DEFAULT_CA_PATH,
+    "server-pem-ca-path",
+    no_short,
+    "Path of pem-style CA cert for ssl to verify clients against")
+
+MCROUTER_OPTION_TOGGLE(
+    ssl_use_ktls12,
+    false,
+    "ssl-use-ktls12",
+    no_short,
+    "Use KTLS for all TLS 1.2 connections")
 
 MCROUTER_OPTION_INTEGER(
     int,
@@ -108,14 +151,6 @@ MCROUTER_OPTION_TOGGLE(
     " routing logic.")
 
 MCROUTER_OPTION_TOGGLE(
-    postprocess_logging_route,
-    false,
-    "postprocess-logging-route",
-    no_short,
-    "For all hits logged by LoggingRoute, pass the request & reply pair to "
-    "implementation-specific postprocessing logic.")
-
-MCROUTER_OPTION_TOGGLE(
     enable_server_compression,
     false,
     "enable-server-compression",
@@ -148,6 +183,53 @@ MCROUTER_OPTION_INTEGER(
     no_short,
     "TFO queue size for SSL connections.  "
     "(only matters if ssl tfo is enabled)")
+
+MCROUTER_OPTION_TOGGLE(
+    enable_pass_through_mode,
+    false,
+    "enable-pass-through-mode",
+    no_short,
+    "If enabled, mcrouter will avoid reserializing requests if the request"
+    " is not modified during routing.")
+
+MCROUTER_OPTION_INTEGER(
+    size_t,
+    tcp_zero_copy_threshold,
+    0,
+    "tcp-zero-copy-threshold",
+    no_short,
+    "TCP packets with payload >= tcp-zero-copy-threshold bytes will use"
+    "use the zero copy optimization on TX."
+    "If 0, the tcp zero copy optimization will not be applied.")
+
+MCROUTER_OPTION_TOGGLE(
+    acl_checker_enable,
+    false,
+    "acl-checker-enable",
+    no_short,
+    "If true, incoming requests are checked against the ACL.")
+
+MCROUTER_OPTION_TOGGLE(
+    acl_checker_enforce,
+    false,
+    "acl-checker-enforce",
+    no_short,
+    "If true, enforces the result of the ACL check.")
+
+MCROUTER_OPTION_STRING(
+    server_ssl_service_identity,
+    "memcache",
+    "server-ssl-service-identity",
+    no_short,
+    "If true, enforces the result of the ACL check.")
+
+MCROUTER_OPTION_INTEGER(
+    size_t,
+    num_listening_sockets,
+    kListeningSocketsDefault,
+    "num-listening-sockets",
+    no_short,
+    "adjust how many listening sockets to use. Must be <= num_proxies")
 
 #ifdef ADDITIONAL_STANDALONE_OPTIONS_FILE
 #include ADDITIONAL_STANDALONE_OPTIONS_FILE

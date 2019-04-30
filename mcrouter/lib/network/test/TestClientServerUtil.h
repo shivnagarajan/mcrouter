@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2015-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #pragma once
 
@@ -21,7 +20,8 @@
 #include "mcrouter/lib/network/AsyncMcServerWorker.h"
 #include "mcrouter/lib/network/CarbonMessageDispatcher.h"
 #include "mcrouter/lib/network/CarbonMessageList.h"
-#include "mcrouter/lib/network/gen/Memcache.h"
+#include "mcrouter/lib/network/gen/MemcacheMessages.h"
+#include "mcrouter/lib/network/gen/MemcacheServer.h"
 #include "mcrouter/lib/network/test/ListenSocket.h"
 
 namespace folly {
@@ -43,7 +43,7 @@ namespace facebook {
 namespace memcache {
 
 class CompressionCodecMap;
-struct ReplyStatsContext;
+struct RpcStatsContext;
 
 namespace test {
 
@@ -103,6 +103,10 @@ class TestServer {
     std::string caPath = getDefaultCaPath();
     std::string certPath = getDefaultCertPath();
     std::string keyPath = getDefaultKeyPath();
+    bool requirePeerCerts = true;
+    std::function<void(McServerSession&)> onConnectionAcceptedAdditionalCb;
+    size_t tcpZeroCopyThresholdBytes = 0;
+    bool useKtls12 = false;
   };
 
   template <class OnRequest = TestServerOnRequest>
@@ -158,26 +162,31 @@ class TestServer {
   bool useTicketKeySeeds_{false};
   folly::fibers::Baton shutdownLock_;
   std::atomic<size_t> acceptedConns_{0};
+  std::function<void(McServerSession&)> onConnectionAcceptedAdditionalCb_;
 
   explicit TestServer(Config config);
 
   void run(std::function<void(AsyncMcServerWorker&)> init);
 };
 
-using SSLContextProvider = std::function<std::shared_ptr<folly::SSLContext>()>;
+struct SSLTestPaths {
+  std::string sslCertPath;
+  std::string sslKeyPath;
+  std::string sslCaPath;
+  SecurityMech mech{SecurityMech::TLS};
+};
 
-// do not use SSL encryption at all
-constexpr std::nullptr_t noSsl() {
-  return nullptr;
-}
 // valid Client SSL Certs
-SSLContextProvider validClientSsl();
-// valid SSL certs
-SSLContextProvider validSsl();
+SSLTestPaths validClientSsl();
 // non-existent client SSL certs
-SSLContextProvider invalidSsl();
+SSLTestPaths invalidClientSsl();
 // broken client SSL certs (handshake fails)
-SSLContextProvider brokenSsl();
+SSLTestPaths brokenClientSsl();
+// client config w/o certs
+SSLTestPaths noCertClientSsl();
+
+// valid SSL certs for server
+SSLTestPaths validSsl();
 
 class TestClient {
  public:
@@ -186,35 +195,35 @@ class TestClient {
       uint16_t port,
       int timeoutMs,
       mc_protocol_t protocol = mc_ascii_protocol,
-      SSLContextProvider ssl = noSsl(),
+      folly::Optional<SSLTestPaths> ssl = folly::none,
       uint64_t qosClass = 0,
       uint64_t qosPath = 0,
       std::string serviceIdentity = "",
       const CompressionCodecMap* compressionCodecMap = nullptr,
       bool enableTfo = false,
-      bool offloadHandshakes = false);
+      bool offloadHandshakes = false,
+      bool sessionCachingEnabled = true);
 
   void setThrottle(size_t maxInflight, size_t maxOutstanding) {
     client_->setThrottle(maxInflight, maxOutstanding);
   }
 
-  void setStatusCallbacks(
-      std::function<void(const folly::AsyncSocket&)> onUp,
-      std::function<void(AsyncMcClient::ConnectionDownReason)> onDown);
+  void setConnectionStatusCallbacks(
+      std::function<void(const folly::AsyncTransportWrapper&, int64_t)> onUp,
+      std::function<void(ConnectionDownReason, int64_t)> onDown);
 
   void sendGet(
       std::string key,
-      mc_res_t expectedResult,
+      carbon::Result expectedResult,
       uint32_t timeoutMs = 200,
-      std::function<void(const ReplyStatsContext&)> replyStatsCallback =
-          nullptr);
+      std::function<void(const RpcStatsContext&)> rpcStatsCallback = nullptr);
 
   void sendSet(
       std::string key,
       std::string value,
-      mc_res_t expectedResult,
-      std::function<void(const ReplyStatsContext&)> replyStatsCallback =
-          nullptr);
+      carbon::Result expectedResult,
+      uint32_t timeoutMs = 200,
+      std::function<void(const RpcStatsContext&)> rpcStatsCallback = nullptr);
 
   void sendVersion(std::string expectedVersion);
 
@@ -262,6 +271,6 @@ class TestClient {
 };
 
 std::string genBigValue();
-} // test
-} // memcache
-} // facebook
+} // namespace test
+} // namespace memcache
+} // namespace facebook

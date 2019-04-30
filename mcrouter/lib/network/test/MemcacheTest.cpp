@@ -1,13 +1,12 @@
-/*
- *  Copyright (c) 2016-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #include <gtest/gtest.h>
 
-#include "mcrouter/lib/network/gen/Memcache.h"
+#include "mcrouter/lib/network/gen/MemcacheMessages.h"
 
 using namespace facebook::memcache;
 
@@ -77,4 +76,10 @@ TEST(Memcache, staticAssert) {
 
   static_assert(McFlushAllRequest::typeId == 43, "");
   static_assert(McFlushAllReply::typeId == 44, "");
+
+  static_assert(McGatRequest::typeId == 45, "");
+  static_assert(McGatReply::typeId == 46, "");
+
+  static_assert(McGatsRequest::typeId == 47, "");
+  static_assert(McGatsReply::typeId == 48, "");
 }

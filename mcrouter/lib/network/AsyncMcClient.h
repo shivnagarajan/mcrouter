@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #pragma once
 
@@ -11,9 +10,11 @@
 #include <functional>
 #include <utility>
 
-#include "mcrouter/lib/Operation.h"
+#include "mcrouter/lib/Reply.h"
 #include "mcrouter/lib/network/AsyncMcClientImpl.h"
+#include "mcrouter/lib/network/ConnectionDownReason.h"
 #include "mcrouter/lib/network/ConnectionOptions.h"
+#include "mcrouter/lib/network/Transport.h"
 
 namespace folly {
 class AsyncSocket;
@@ -23,7 +24,7 @@ class EventBase;
 namespace facebook {
 namespace memcache {
 
-struct ReplyStatsContext;
+struct RpcStatsContext;
 
 /**
  * A class for network communication with memcache protocol.
@@ -34,66 +35,54 @@ struct ReplyStatsContext;
  * as we have at least one request, but it will be impossible to send more
  * requests).
  */
-class AsyncMcClient {
+class AsyncMcClient : public Transport {
  public:
-  using ConnectionDownReason = AsyncMcClientImpl::ConnectionDownReason;
-  using FlushList = AsyncMcClientImpl::FlushList;
+  using FlushList = Transport::FlushList;
+  using RequestQueueStats = Transport::RequestQueueStats;
 
   AsyncMcClient(folly::EventBase& eventBase, ConnectionOptions options);
   AsyncMcClient(folly::VirtualEventBase& eventBase, ConnectionOptions options);
-  ~AsyncMcClient() {
+  ~AsyncMcClient() final {
     base_->setFlushList(nullptr);
   }
 
   /**
    * Close connection and fail all outstanding requests immediately.
    */
-  void closeNow();
+  void closeNow() override final;
 
   /**
    * Set status callbacks for the underlying connection.
    *
-   * @param onUp  will be called whenever client successfully connects to the
-   *              server. Will be called immediately if we're already connected.
-   *              Can be nullptr.
-   * @param onDown  will be called whenever connection goes down. Will be passed
-   *                explanation about why the connection went down.
-   *                Will not be called if the connection is already DOWN.
-   *                Can be nullptr.
-   * Note: those callbacks may be called even after the client was destroyed.
+   * NOTE: those callbacks may be called even after the client was destroyed.
    *       This will happen in case when the client is destroyed and there are
    *       some requests left, for wich reply callback wasn't called yet.
    */
-  void setStatusCallbacks(
-      std::function<void(const folly::AsyncSocket&)> onUp,
-      std::function<void(ConnectionDownReason)> onDown);
+  void setConnectionStatusCallbacks(
+      ConnectionStatusCallbacks callbacks) override final;
 
   /**
    * Set callbacks for when requests state change.
-   *
-   * @param onStateChange   Will be called whenever a request changes state.
-   *                        pendingDiff and inflightDiff will hold the
-   *                        difference in the number of pending and inflight
-   *                        requests, respectively.
-   * @param onWrite           Will be called everytime AsyncMcClient is about to
-   *                          write data to network. The numToSend argument
-   *                          holds the number of requests that will be sent in
-   *                          a single batch.
    */
   void setRequestStatusCallbacks(
-      std::function<void(int pendingDiff, int inflightDiff)> onStateChange,
-      std::function<void(int numToSend)> onWrite);
+      RequestStatusCallbacks callbacks) override final;
 
   /**
    * Send request synchronously (i.e. blocking call).
-   * Note: it must be called only from fiber context. It will block the current
+   * NOTE: it must be called only from fiber context. It will block the current
    *       stack and will send request only when we loop EventBase.
+   *
+   * @param request       The request to send.
+   * @param timeout       The timeout of this call.
+   * @param rpcContext    Output argument that can be used to return information
+   *                      about the reply received. If nullptr, it will be
+   *                      ignored (i.e. no information is going be sent back up)
    */
   template <class Request>
   ReplyT<Request> sendSync(
       const Request& request,
       std::chrono::milliseconds timeout,
-      ReplyStatsContext* replyContext = nullptr);
+      RpcStatsContext* rpcContext = nullptr);
 
   /**
    * Set throttling options.
@@ -113,58 +102,58 @@ class AsyncMcClient {
    * Note: will not affect already sent or pending requests. None of them would
    *       be dropped.
    */
-  void setThrottle(size_t maxInflight, size_t maxPending);
+  void setThrottle(size_t maxInflight, size_t maxPending) override final;
 
   /**
-   * Get the number of requests in pending queue. Those requests have not been
-   * sent to the network yet, this means that in case of remote error we can
-   * still try to send them.
+   * Get the current stats of the requests queues.
    */
-  size_t getPendingRequestCount() const;
+  RequestQueueStats getRequestQueueStats() const override final;
 
   /**
-   * Get the number of requests in inflight queue. This amounts for requests
-   * that are currently been written to the socket and requests that were
-   * already sent to the server and are waiting for replies. Those requests
-   * might be already processed by the server, thus they wouldn't be
-   * retransmitted in case of error.
+   * Update connect and write timeouts. If the new value is larger than the
+   * current value, it is ignored.
+   *
+   * @param connectTimeout  The new connect timeout.
+   * @param writeTimeout    The new write timeout.
    */
-  size_t getInflightRequestCount() const;
-
-  /**
-   * Update send and connect timeout. If new value is larger than current
-   * it is ignored.
-   */
-  void updateWriteTimeout(std::chrono::milliseconds timeout);
+  void updateTimeoutsIfShorter(
+      std::chrono::milliseconds connectTimeout,
+      std::chrono::milliseconds writeTimeout) override final;
 
   /**
    * @return        The transport used to manage socket
    */
-  const folly::AsyncTransportWrapper* getTransport();
+  const folly::AsyncTransportWrapper* getTransport() const override final;
 
   /**
    * @return Retransmits per packet used to detect lossy connections
    */
-  double getRetransmissionInfo();
-
-  /**
-   * Get the drop probability
-   */
-  template <class Request>
-  double getDropProbability() const;
+  double getRetransmitsPerKb() override final;
 
   /**
    * Set external queue for managing flush callbacks. By default we'll use
    * EventBase as a manager of these callbacks.
    */
-  void setFlushList(FlushList* flushList) {
+  void setFlushList(FlushList* flushList) override final {
     base_->setFlushList(flushList);
   }
+
+  /**
+   * The name of this transport.
+   */
+  static constexpr folly::StringPiece name() {
+    return "AsyncMcClient";
+  }
+
+  /**
+   * Tells whether or not this Transport is compatible with the given protocol.
+   */
+  static constexpr bool isCompatible(mc_protocol_t protocol);
 
  private:
   std::shared_ptr<AsyncMcClientImpl> base_;
 };
-} // memcache
-} // facebook
+} // namespace memcache
+} // namespace facebook
 
 #include "AsyncMcClient-inl.h"

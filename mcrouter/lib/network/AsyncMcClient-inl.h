@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 namespace facebook {
 namespace memcache {
@@ -22,55 +21,51 @@ inline void AsyncMcClient::closeNow() {
   base_->closeNow();
 }
 
-inline void AsyncMcClient::setStatusCallbacks(
-    std::function<void(const folly::AsyncSocket&)> onUp,
-    std::function<void(ConnectionDownReason)> onDown) {
-  base_->setStatusCallbacks(std::move(onUp), std::move(onDown));
+inline void AsyncMcClient::setConnectionStatusCallbacks(
+    ConnectionStatusCallbacks callbacks) {
+  base_->setConnectionStatusCallbacks(std::move(callbacks));
 }
 
 inline void AsyncMcClient::setRequestStatusCallbacks(
-    std::function<void(int pendingDiff, int inflightDiff)> onStateChange,
-    std::function<void(int numToSend)> onWrite) {
-  base_->setRequestStatusCallbacks(
-      std::move(onStateChange), std::move(onWrite));
+    RequestStatusCallbacks callbacks) {
+  base_->setRequestStatusCallbacks(std::move(callbacks));
 }
 
 template <class Request>
 ReplyT<Request> AsyncMcClient::sendSync(
     const Request& request,
     std::chrono::milliseconds timeout,
-    ReplyStatsContext* replyContext) {
-  return base_->sendSync(request, timeout, replyContext);
+    RpcStatsContext* rpcContext) {
+  return base_->sendSync(request, timeout, rpcContext);
 }
 
 inline void AsyncMcClient::setThrottle(size_t maxInflight, size_t maxPending) {
   base_->setThrottle(maxInflight, maxPending);
 }
 
-inline size_t AsyncMcClient::getPendingRequestCount() const {
-  return base_->getPendingRequestCount();
+inline typename Transport::RequestQueueStats
+AsyncMcClient::getRequestQueueStats() const {
+  return base_->getRequestQueueStats();
 }
 
-inline size_t AsyncMcClient::getInflightRequestCount() const {
-  return base_->getInflightRequestCount();
+inline void AsyncMcClient::updateTimeoutsIfShorter(
+    std::chrono::milliseconds connectTimeout,
+    std::chrono::milliseconds writeTimeout) {
+  base_->updateTimeoutsIfShorter(connectTimeout, writeTimeout);
 }
 
-inline void AsyncMcClient::updateWriteTimeout(
-    std::chrono::milliseconds timeout) {
-  base_->updateWriteTimeout(timeout);
-}
-
-inline const folly::AsyncTransportWrapper* AsyncMcClient::getTransport() {
+inline const folly::AsyncTransportWrapper* AsyncMcClient::getTransport() const {
   return base_->getTransport();
 }
 
-inline double AsyncMcClient::getRetransmissionInfo() {
-  return base_->getRetransmissionInfo();
+inline double AsyncMcClient::getRetransmitsPerKb() {
+  return base_->getRetransmitsPerKb();
 }
 
-template <class Request>
-double AsyncMcClient::getDropProbability() const {
-  return base_->getDropProbability<Request>();
+/* static */ inline constexpr bool AsyncMcClient::isCompatible(
+    mc_protocol_t protocol) {
+  return protocol == mc_ascii_protocol || protocol == mc_caret_protocol;
 }
-} // memcache
-} // facebook
+
+} // namespace memcache
+} // namespace facebook

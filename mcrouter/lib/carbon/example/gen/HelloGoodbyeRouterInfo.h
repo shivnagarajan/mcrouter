@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include <chrono>
 #include <functional>
 #include <unordered_map>
 
@@ -27,6 +28,7 @@
 // Forward declarations
 namespace folly {
 struct dynamic;
+class VirtualEventBase;
 } // namespace folly
 
 namespace facebook {
@@ -44,7 +46,9 @@ namespace hellogoodbye {
 
 namespace detail {
 
-using HelloGoodbyeRoutableRequests = carbon::List<GoodbyeRequest, HelloRequest>;
+using HelloGoodbyeRoutableRequests = carbon::List<
+    GoodbyeRequest,
+    HelloRequest>;
 } // namespace detail
 
 struct HelloGoodbyeRouterInfo {
@@ -56,7 +60,7 @@ struct HelloGoodbyeRouterInfo {
   template <class Route>
   using RouteHandle = HelloGoodbyeRouteHandle<Route>;
   using RoutableRequests = detail::HelloGoodbyeRoutableRequests;
-
+  
   using RouterStats = carbon::Stats<HelloGoodbyeRouterStatsConfig>;
 
   using RouteHandleFactoryMap = std::unordered_map<
@@ -73,3 +77,5 @@ struct HelloGoodbyeRouterInfo {
   buildExtraProvider();
 };
 } // namespace hellogoodbye
+
+#include "mcrouter/lib/carbon/example/gen/HelloGoodbyeThriftTransport.h"

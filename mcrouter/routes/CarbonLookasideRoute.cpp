@@ -34,9 +34,21 @@ class CarbonLookasideManager {
     std::shared_ptr<CarbonRouterInstance<MemcacheRouterInfo>> mcrouter =
         folly::get_default(mcroutersLookaside_, persistenceId).lock();
     if (!mcrouter) {
-      mcrouter = createRouterFromFlavor<MemcacheRouterInfo>(
-          flavorUri, optionOverrides);
-      mcroutersLookaside_[persistenceId] = mcrouter;
+      const std::string kServiceName = "service_name";
+      if (optionOverrides.find(kServiceName) == optionOverrides.end()) {
+        optionOverrides.emplace(kServiceName, "carbon");
+      }
+      try {
+        mcrouter = createRouterFromFlavor<MemcacheRouterInfo>(
+            flavorUri, optionOverrides);
+        if (mcrouter) {
+          mcroutersLookaside_[persistenceId] = mcrouter;
+        }
+      } catch (const std::exception& ex) {
+        mcrouter = nullptr;
+        LOG(ERROR) << "Error creating mcrouter for lookaside route. Exception: "
+                   << ex.what();
+      }
     }
     return mcrouter;
   }

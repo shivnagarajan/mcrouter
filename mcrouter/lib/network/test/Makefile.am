@@ -8,6 +8,7 @@ mcrouter_network_test_SOURCES = \
   CarbonQueueAppenderTest.cpp \
   gen/CarbonTestMessages.cpp \
   McAsciiParserTest.cpp \
+  McParserTest.cpp \
   McServerAsciiParserTest.cpp \
   MockMc.cpp \
   MockMcServer.cpp \
@@ -19,8 +20,19 @@ mcrouter_network_test_SOURCES = \
   TestMcAsciiParserUtil.cpp \
   TestMcAsciiParserUtil.h
 
-mcrouter_network_test_CPPFLAGS = -I$(top_srcdir)/.. -isystem $(top_srcdir)/lib/gtest/include
+mcrouter_network_test_CPPFLAGS = \
+	-I$(top_srcdir)/.. \
+	-isystem $(top_srcdir)/lib/gtest/include
+
 mcrouter_network_test_LDADD = \
   $(top_builddir)/lib/libmcrouter.a \
   $(top_builddir)/lib/libtestmain.la \
-  $(top_builddir)/lib/network/libtest_util.a
+  $(top_builddir)/lib/network/libtest_util.a \
+  -lprotocol \
+  -lthriftcpp2 \
+  -lthriftprotocol \
+  -ltransport \
+  -lwangle \
+  -lfizz \
+  -lsodium \
+  -lfolly

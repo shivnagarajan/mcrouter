@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #pragma once
 
@@ -11,18 +10,18 @@
 #include <string>
 #include <vector>
 
+#include <folly/Traits.h>
 #include <folly/fibers/FiberManager.h>
 #include <folly/fibers/SimpleLoopController.h>
 #include <folly/fibers/WhenN.h>
 
 #include "mcrouter/lib/IOBufUtil.h"
-#include "mcrouter/lib/Operation.h"
 #include "mcrouter/lib/Reply.h"
 #include "mcrouter/lib/RouteHandleTraverser.h"
 #include "mcrouter/lib/carbon/RoutingGroups.h"
 #include "mcrouter/lib/config/RouteHandleBuilder.h"
 #include "mcrouter/lib/config/RouteHandleProviderIf.h"
-#include "mcrouter/lib/network/gen/Memcache.h"
+#include "mcrouter/lib/network/gen/MemcacheMessages.h"
 #include "mcrouter/lib/routes/NullRoute.h"
 
 namespace facebook {
@@ -49,7 +48,7 @@ template <class Reply>
 typename std::enable_if<!Reply::hasValue, void>::type setReplyValue(
     Reply&,
     const std::string& /* val */) {}
-} // detail
+} // namespace detail
 
 /**
  * Very basic route handle provider to be used in unit tests only.
@@ -86,31 +85,42 @@ class SimpleRouteHandleProvider : public RouteHandleProviderIf<RouteHandleIf> {
 };
 
 struct GetRouteTestData {
-  mc_res_t result_;
+  carbon::Result result_;
   std::string value_;
   int64_t flags_;
+  int16_t appSpecificErrorCode_;
 
   GetRouteTestData()
-      : result_(mc_res_unknown), value_(std::string()), flags_(0) {}
+      : result_(carbon::Result::UNKNOWN),
+        value_(std::string()),
+        flags_(0),
+        appSpecificErrorCode_(0) {}
 
-  GetRouteTestData(mc_res_t result, const std::string& value, int64_t flags = 0)
-      : result_(result), value_(value), flags_(flags) {}
+  GetRouteTestData(
+      carbon::Result result,
+      const std::string& value,
+      int64_t flags = 0,
+      int16_t appSpecificErrorCode = 0)
+      : result_(result),
+        value_(value),
+        flags_(flags),
+        appSpecificErrorCode_(appSpecificErrorCode) {}
 };
 
 struct UpdateRouteTestData {
-  mc_res_t result_;
+  carbon::Result result_;
   uint64_t flags_;
 
-  UpdateRouteTestData() : result_(mc_res_unknown), flags_(0) {}
+  UpdateRouteTestData() : result_(carbon::Result::UNKNOWN), flags_(0) {}
 
-  explicit UpdateRouteTestData(mc_res_t result, uint64_t flags = 0)
+  explicit UpdateRouteTestData(carbon::Result result, uint64_t flags = 0)
       : result_(result), flags_(flags) {}
 };
 
 struct DeleteRouteTestData {
-  mc_res_t result_;
+  carbon::Result result_;
 
-  explicit DeleteRouteTestData(mc_res_t result = mc_res_unknown)
+  explicit DeleteRouteTestData(carbon::Result result = carbon::Result::UNKNOWN)
       : result_(result) {}
 };
 
@@ -130,6 +140,8 @@ struct TestHandleImpl {
   std::vector<std::string> sawOperations;
 
   std::vector<int64_t> sawLeaseTokensSet;
+
+  std::vector<std::string> sawShadowIds;
 
   bool isTko;
 
@@ -206,6 +218,13 @@ struct TestHandleImpl {
   }
 };
 
+template <class Request, class = std::string&>
+struct HasShadowId : public std::false_type {};
+
+template <class Request>
+struct HasShadowId<Request, decltype(std::declval<Request>().shadowId())>
+    : public std::true_type {};
+
 /* Records all the keys we saw */
 template <class RouteHandleIf>
 struct RecordingRoute {
@@ -214,8 +233,10 @@ struct RecordingRoute {
   }
 
   template <class Request>
-  void traverse(const Request&, const RouteHandleTraverser<RouteHandleIf>&)
-      const {}
+  bool traverse(const Request&, const RouteHandleTraverser<RouteHandleIf>&)
+      const {
+    return false;
+  }
 
   GetRouteTestData dataGet_;
   UpdateRouteTestData dataUpdate_;
@@ -242,6 +263,35 @@ struct RecordingRoute {
   }
 
   template <class Request>
+  std::enable_if_t<HasShadowId<Request>::value, void> recordShadowId(
+      const Request& req) {
+    h_->sawShadowIds.push_back(req.shadowId());
+  }
+  template <class Request>
+  std::enable_if_t<!HasShadowId<Request>::value, void> recordShadowId(
+      const Request&) {}
+
+  template <typename T, typename = void>
+  struct has_app_error : std::false_type {};
+  template <typename T>
+  struct has_app_error<
+      T,
+      folly::void_t<decltype(std::declval<T>().appSpecificErrorCode())>>
+      : std::true_type {};
+
+  template <
+      typename Reply,
+      typename std::enable_if_t<!has_app_error<Reply>::value>* = nullptr>
+  void setAppspecificErrorCode(Reply& /* unused */) {}
+
+  template <
+      typename Reply,
+      typename std::enable_if_t<has_app_error<Reply>::value>* = nullptr>
+  void setAppspecificErrorCode(Reply& reply) {
+    reply.appSpecificErrorCode() = dataGet_.appSpecificErrorCode_;
+  }
+
+  template <class Request>
   ReplyT<Request> routeInternal(const Request& req) {
     ReplyT<Request> reply;
 
@@ -256,17 +306,20 @@ struct RecordingRoute {
     h_->saw_keys.push_back(req.key().fullKey().str());
     h_->sawOperations.push_back(Request::name);
     h_->sawExptimes.push_back(req.exptime());
+    recordShadowId(req);
     if (carbon::GetLike<Request>::value) {
       reply.result() = dataGet_.result_;
       detail::setReplyValue(reply, dataGet_.value_);
       detail::testSetFlags(reply, dataGet_.flags_);
+      setAppspecificErrorCode(reply);
       return reply;
     }
     if (carbon::UpdateLike<Request>::value) {
-      assert(carbon::valuePtrUnsafe(req) != nullptr);
-      auto val = carbon::valuePtrUnsafe(req)->clone();
-      folly::StringPiece sp_value = coalesceAndGetRange(val);
-      h_->sawValues.push_back(sp_value.str());
+      if (carbon::valuePtrUnsafe(req) != nullptr) {
+        auto val = carbon::valuePtrUnsafe(req)->clone();
+        folly::StringPiece sp_value = coalesceAndGetRange(val);
+        h_->sawValues.push_back(sp_value.str());
+      }
       reply.result() = dataUpdate_.result_;
       detail::testSetFlags(reply, dataUpdate_.flags_);
       return reply;
@@ -334,5 +387,5 @@ std::string replyFor(Rh& rh, const std::string& key) {
   return carbon::valueRangeSlow(reply).str();
 }
 
-} // memcache
-} // facebook
+} // namespace memcache
+} // namespace facebook

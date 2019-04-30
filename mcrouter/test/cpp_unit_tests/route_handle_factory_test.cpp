@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #include <glog/logging.h>
 #include <gtest/gtest.h>
@@ -11,7 +10,7 @@
 #include "mcrouter/PoolFactory.h"
 #include "mcrouter/Proxy.h"
 #include "mcrouter/lib/config/RouteHandleFactory.h"
-#include "mcrouter/lib/network/gen/Memcache.h"
+#include "mcrouter/lib/network/gen/MemcacheMessages.h"
 #include "mcrouter/lib/network/gen/MemcacheRouterInfo.h"
 #include "mcrouter/options.h"
 #include "mcrouter/routes/McRouteHandleProvider.h"
@@ -33,7 +32,7 @@ TEST(RouteHandleFactoryTest, sanity) {
   EXPECT_TRUE(rh != nullptr);
   fm.run([&rh]() {
     auto reply = rh->route(McGetRequest("a"));
-    EXPECT_EQ(mc_res_notfound, reply.result());
+    EXPECT_EQ(carbon::Result::NOTFOUND, reply.result());
   });
 
   rh = factory.create("AllFastestRoute|ErrorRoute");
@@ -68,7 +67,7 @@ TEST(RouteHandleFactoryTest, sanity) {
   EXPECT_TRUE(rh != nullptr);
   fm.run([&rh]() {
     auto reply = rh->route(McGetRequest("a"));
-    EXPECT_EQ(mc_res_notfound, reply.result());
+    EXPECT_EQ(carbon::Result::NOTFOUND, reply.result());
   });
 
   rh = factory.create("HashRoute|ErrorRoute");
@@ -89,7 +88,7 @@ TEST(RouteHandleFactoryTest, sanity) {
   EXPECT_TRUE(rh != nullptr);
   fm.run([&rh]() {
     auto reply = rh->route(McGetRequest("a"));
-    EXPECT_EQ(mc_res_notfound, reply.result());
+    EXPECT_EQ(carbon::Result::NOTFOUND, reply.result());
   });
 
   rh = factory.create("LoggingRoute");
@@ -97,14 +96,14 @@ TEST(RouteHandleFactoryTest, sanity) {
   fm.run([&rh]() {
     mockFiberContext();
     auto reply = rh->route(McGetRequest("a"));
-    EXPECT_EQ(mc_res_notfound, reply.result());
+    EXPECT_EQ(carbon::Result::NOTFOUND, reply.result());
   });
 
   rh = factory.create("MissFailoverRoute|NullRoute");
   EXPECT_TRUE(rh != nullptr);
   fm.run([&rh]() {
     auto reply = rh->route(McGetRequest("a"));
-    EXPECT_EQ(mc_res_notfound, reply.result());
+    EXPECT_EQ(carbon::Result::NOTFOUND, reply.result());
   });
 
   rh = factory.create("RandomRoute|ErrorRoute");

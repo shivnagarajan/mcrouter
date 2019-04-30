@@ -1,4 +1,4 @@
-# Copyright (c) 2016-present, Facebook, Inc.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
 # This source code is licensed under the MIT license found in the LICENSE
 # file in the root directory of this source tree.
@@ -40,12 +40,14 @@ class McrouterTestCase(unittest.TestCase):
 
         return server
 
-    def add_mcrouter(self, config, route=None, extra_args=[], replace_map=None,
-                     bg_mcrouter=False):
+    def add_mcrouter(self, config, route=None, extra_args=None,
+                     replace_map=None, bg_mcrouter=False, replace_ports=True):
         self.ensureClassVariables()
-        substitute_ports = (self.open_ports
-                            if 'port_map' not in self.__dict__
-                            else self.port_map)
+        substitute_ports = None
+        if replace_ports:
+            substitute_ports = (self.open_ports
+                                if 'port_map' not in self.__dict__
+                                else self.port_map)
 
         mcrouter = Mcrouter(config,
                             substitute_config_ports=substitute_ports,

@@ -1,16 +1,18 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #include <string>
 #include <vector>
 
 #include <gtest/gtest.h>
 
+#include "mcrouter/lib/network/AsyncMcServerWorker.h"
 #include "mcrouter/lib/network/AsyncMcServerWorkerOptions.h"
+#include "mcrouter/lib/network/McServerSession.h"
+#include "mcrouter/lib/network/gen/MemcacheServer.h"
 #include "mcrouter/lib/network/test/SessionTestHarness.h"
 
 using namespace facebook::memcache;
@@ -128,11 +130,12 @@ TEST(Session, quit) {
 TEST(Session, closeBeforeReply) {
   struct Callbacks : public McServerSession::StateCallback {
    public:
+    void onAccepted(McServerSession&) final {}
     void onWriteQuiescence(McServerSession&) final {
       EXPECT_EQ(state_, ACTIVE);
     }
     void onCloseStart(McServerSession&) final {}
-    void onCloseFinish(McServerSession&) final {
+    void onCloseFinish(McServerSession&, bool) final {
       EXPECT_EQ(state_, ACTIVE);
       state_ = CLOSED;
     }
@@ -172,7 +175,7 @@ TEST(Session, invalidSocketAdd) {
   worker.setOnRequest(MemcacheRequestHandler<NoOpOnRequest>());
   worker.setOnWriteQuiescence([](McServerSession&) {});
   worker.setOnConnectionCloseStart([](McServerSession&) {});
-  worker.setOnConnectionCloseFinish([](McServerSession&) {});
+  worker.setOnConnectionCloseFinish([](McServerSession&, bool) {});
 
   worker.addClientSocket(invalidFd);
 }

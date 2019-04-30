@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2016-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #include <signal.h>
 
@@ -12,6 +11,7 @@
 #include <folly/Format.h>
 #include <folly/Singleton.h>
 #include <folly/init/Init.h>
+#include <folly/logging/Init.h>
 
 #include "mcrouter/tools/mcpiper/McPiper.h"
 
@@ -106,7 +106,7 @@ Settings parseOptions(int argc, char** argv) {
       "protocol",
       po::value<std::string>(&settings.protocol),
       "Show only data transmitted in the provided protocol; "
-      "ARG is \"ascii\", \"umbrella\" or \"caret\".")(
+      "ARG is \"ascii\" or \"caret\".")(
       "verbose",
       po::value<size_t>(&settings.verboseLevel),
       "Set verbose level")(
@@ -172,6 +172,11 @@ Settings parseOptions(int argc, char** argv) {
 }
 
 } // anonymous namespace
+
+// Configure folly to enable INFO+ messages, and everything else to
+// enable WARNING+.
+// Set the default log handler to log asynchronously by default.
+FOLLY_INIT_LOGGING_CONFIG(".=WARNING,folly=INFO; default:async=true");
 
 int main(int argc, char** argv) {
   // Just give the binary name to folly::init() because we use

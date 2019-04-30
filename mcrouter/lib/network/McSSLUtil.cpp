@@ -1,14 +1,15 @@
-/*
- *  Copyright (c) 2017-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #include "McSSLUtil.h"
 
 #include <folly/SharedMutex.h>
+#include <folly/io/async/ssl/BasicTransportCertificate.h>
 #include <folly/io/async/ssl/OpenSSLUtils.h>
+#include <mcrouter/lib/network/TlsToPlainTransport.h>
 
 namespace facebook {
 namespace memcache {
@@ -33,7 +34,19 @@ static McSSLUtil::SSLFinalizeFunction& getClientFinalizeFuncRef() {
   static McSSLUtil::SSLFinalizeFunction FINALIZER;
   return FINALIZER;
 }
+
+static McSSLUtil::SSLToKtlsFunction& getKtlsFuncRef() {
+  static McSSLUtil::SSLToKtlsFunction KTLSFUNC;
+  return KTLSFUNC;
+}
+
+static McSSLUtil::KtlsStatsFunction& getKtlsStatsFuncRef() {
+  static McSSLUtil::KtlsStatsFunction KTLSFUNC;
+  return KTLSFUNC;
+}
 } // namespace
+
+const std::string McSSLUtil::kTlsToPlainProtocolName = "mc_plaintext";
 
 bool McSSLUtil::verifySSLWithDefaultBehavior(
     folly::AsyncSSLSocket*,
@@ -67,6 +80,14 @@ bool McSSLUtil::verifySSLWithDefaultBehavior(
   }
   return folly::ssl::OpenSSLUtils::validatePeerCertNames(
       cert, reinterpret_cast<sockaddr*>(&addrStorage), addrLen);
+}
+
+void McSSLUtil::setApplicationKtlsFunctions(
+    SSLToKtlsFunction func,
+    KtlsStatsFunction statsFunc) {
+  folly::SharedMutex::WriteHolder wh(getMutex());
+  getKtlsFuncRef() = std::move(func);
+  getKtlsStatsFuncRef() = std::move(statsFunc);
 }
 
 void McSSLUtil::setApplicationSSLVerifier(SSLVerifyFunction func) {
@@ -116,5 +137,69 @@ void McSSLUtil::finalizeClientSSL(
   }
 }
 
+bool McSSLUtil::negotiatedPlaintextFallback(
+    const folly::AsyncSSLSocket& sock) noexcept {
+  // get the negotiated protocol
+  auto nextProto = sock.getApplicationProtocol();
+  return nextProto == kMcSecurityTlsToPlaintextProto;
+}
+
+folly::AsyncTransportWrapper::UniquePtr McSSLUtil::moveToPlaintext(
+    folly::AsyncSSLSocket& sock) noexcept {
+  if (!negotiatedPlaintextFallback(sock)) {
+    return nullptr;
+  }
+
+  // Get the stats for the socket
+  SecurityTransportStats stats;
+  stats.tfoSuccess = sock.getTFOSucceded();
+  stats.tfoAttempted = sock.getTFOAttempted();
+  stats.tfoFinished = sock.getTFOFinished();
+  stats.sessionReuseSuccess = sock.getSSLSessionReused();
+  stats.sessionReuseAttempted = sock.sessionResumptionAttempted();
+
+  // We need to mark the SSL as shutdown here, but need to do
+  // it quietly so no alerts are sent over the wire.
+  // This prevents SSL thinking we are shutting down in a bad state
+  // when AsyncSSLSocket is cleaned up, which could remove the session
+  // from the session cache
+  auto ssl = const_cast<SSL*>(sock.getSSL());
+  SSL_set_quiet_shutdown(ssl, 1);
+  SSL_shutdown(ssl);
+
+  // fallback to plaintext
+  auto selfCert =
+      folly::ssl::BasicTransportCertificate::create(sock.getSelfCertificate());
+  auto peerCert =
+      folly::ssl::BasicTransportCertificate::create(sock.getPeerCertificate());
+  auto evb = sock.getEventBase();
+  auto zcId = sock.getZeroCopyBufId();
+  auto fd = sock.detachNetworkSocket();
+
+  TlsToPlainTransport::UniquePtr res(new TlsToPlainTransport(evb, fd, zcId));
+  res->setSelfCertificate(std::move(selfCert));
+  res->setPeerCertificate(std::move(peerCert));
+  res->setStats(stats);
+  return res;
+}
+
+folly::AsyncTransportWrapper::UniquePtr McSSLUtil::moveToKtls(
+    folly::AsyncTransportWrapper& sock) noexcept {
+  folly::SharedMutex::ReadHolder rh(getMutex());
+  auto& func = getKtlsFuncRef();
+  if (func) {
+    return func(sock);
+  }
+  return nullptr;
+}
+
+folly::Optional<SecurityTransportStats> McSSLUtil::getKtlsStats(
+    const folly::AsyncTransportWrapper& sock) noexcept {
+  auto& func = getKtlsStatsFuncRef();
+  if (func) {
+    return func(sock);
+  }
+  return folly::none;
+}
 } // namespace memcache
 } // namespace facebook

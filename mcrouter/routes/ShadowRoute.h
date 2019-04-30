@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #pragma once
 
@@ -19,7 +18,7 @@
 #include "mcrouter/McrouterFiberContext.h"
 #include "mcrouter/McrouterLogFailure.h"
 #include "mcrouter/ProxyBase.h"
-#include "mcrouter/lib/Operation.h"
+#include "mcrouter/lib/Reply.h"
 #include "mcrouter/lib/RouteHandleTraverser.h"
 #include "mcrouter/routes/DefaultShadowPolicy.h"
 #include "mcrouter/routes/McRouteHandleBuilder.h"
@@ -66,15 +65,20 @@ class ShadowRoute {
         shadowPolicy_(std::move(shadowPolicy)) {}
 
   template <class Request>
-  void traverse(
+  bool traverse(
       const Request& req,
       const RouteHandleTraverser<RouteHandleIf>& t) const {
-    t(*normal_, req);
-    fiber_local<RouterInfo>::runWithLocals([this, &req, &t]() mutable {
+    if (t(*normal_, req)) {
+      return true;
+    }
+    return fiber_local<RouterInfo>::runWithLocals([this, &req, &t]() mutable {
       fiber_local<RouterInfo>::addRequestClass(RequestClass::kShadow);
       for (auto& shadowData : shadowData_) {
-        t(*shadowData.first, req);
+        if (t(*shadowData.first, req)) {
+          return true;
+        }
       }
+      return false;
     });
   }
 

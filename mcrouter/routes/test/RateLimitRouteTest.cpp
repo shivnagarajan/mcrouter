@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #include <memory>
 #include <random>
@@ -14,7 +13,7 @@
 #include <folly/json.h>
 
 #include "mcrouter/lib/config/RouteHandleFactory.h"
-#include "mcrouter/lib/network/gen/Memcache.h"
+#include "mcrouter/lib/network/gen/MemcacheMessages.h"
 #include "mcrouter/lib/test/RouteHandleTestUtil.h"
 #include "mcrouter/routes/McrouterRouteHandle.h"
 #include "mcrouter/routes/RateLimitRoute.h"
@@ -37,8 +36,8 @@ template <class Data, class Request>
 void test(
     Data data,
     Request,
-    mc_res_t ok,
-    mc_res_t reject,
+    carbon::Result ok,
+    carbon::Result reject,
     const std::string& type,
     bool burst = false) {
   vector<std::shared_ptr<TestHandle>> normalHandle{
@@ -82,30 +81,30 @@ void test(
 
 void testSets(bool burst = false) {
   test(
-      UpdateRouteTestData(mc_res_stored),
+      UpdateRouteTestData(carbon::Result::STORED),
       McSetRequest(),
-      mc_res_stored,
-      mc_res_notstored,
+      carbon::Result::STORED,
+      carbon::Result::NOTSTORED,
       "sets",
       burst);
 }
 
 void testGets(bool burst = false) {
   test(
-      GetRouteTestData(mc_res_found, "a"),
+      GetRouteTestData(carbon::Result::FOUND, "a"),
       McGetRequest(),
-      mc_res_found,
-      mc_res_notfound,
+      carbon::Result::FOUND,
+      carbon::Result::NOTFOUND,
       "gets",
       burst);
 }
 
 void testDeletes(bool burst = false) {
   test(
-      DeleteRouteTestData(mc_res_deleted),
+      DeleteRouteTestData(carbon::Result::DELETED),
       McDeleteRequest(),
-      mc_res_deleted,
-      mc_res_notfound,
+      carbon::Result::DELETED,
+      carbon::Result::NOTFOUND,
       "deletes",
       burst);
 }

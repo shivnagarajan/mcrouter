@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2016-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #include <vector>
 
@@ -120,6 +119,12 @@ CarbonRouterInstance<RouterInfo>* CarbonRouterInstance<RouterInfo>::get(
 }
 
 template <class RouterInfo>
+bool CarbonRouterInstance<RouterInfo>::hasInstance(
+    folly::StringPiece persistenceId) {
+  return get(persistenceId) != nullptr;
+}
+
+template <class RouterInfo>
 CarbonRouterInstance<RouterInfo>* CarbonRouterInstance<RouterInfo>::createRaw(
     McrouterOptions input_options,
     const std::vector<folly::EventBase*>& evbs) {
@@ -217,7 +222,9 @@ CarbonRouterInstance<RouterInfo>::createClient(
       this->shared_from_this(),
       max_outstanding,
       max_outstanding_error,
-      /* sameThread= */ false);
+      opts().thread_affinity
+          ? CarbonRouterClient<RouterInfo>::ThreadMode::AffinitizedRemoteThread
+          : CarbonRouterClient<RouterInfo>::ThreadMode::FixedRemoteThread);
 }
 
 template <class RouterInfo>
@@ -228,7 +235,7 @@ CarbonRouterInstance<RouterInfo>::createSameThreadClient(
       this->shared_from_this(),
       max_outstanding,
       /* maxOutstandingError= */ true,
-      /* sameThread= */ true);
+      CarbonRouterClient<RouterInfo>::ThreadMode::SameThread);
 }
 
 template <class RouterInfo>
@@ -262,6 +269,7 @@ CarbonRouterInstance<RouterInfo>::spinUp(
       }
     }
 
+    VLOG(2) << "spinning up proxy threads";
     for (size_t i = 0; i < opts_.num_proxies; i++) {
       if (evbs.empty()) {
         try {
@@ -329,6 +337,12 @@ template <class RouterInfo>
 Proxy<RouterInfo>* CarbonRouterInstance<RouterInfo>::getProxy(
     size_t index) const {
   return index < proxies_.size() ? proxies_[index] : nullptr;
+}
+
+template <class RouterInfo>
+const std::vector<Proxy<RouterInfo>*>
+CarbonRouterInstance<RouterInfo>::getProxies() const {
+  return proxies_;
 }
 
 template <class RouterInfo>
@@ -506,6 +520,7 @@ CarbonRouterInstance<RouterInfo>::configure(const ProxyConfigBuilder& builder) {
 template <class RouterInfo>
 folly::Expected<ProxyConfigBuilder, std::string>
 CarbonRouterInstance<RouterInfo>::createConfigBuilder() {
+  VLOG_IF(0, !opts_.constantly_reload_configs) << "creating config builder";
   /* mark config attempt before, so that
      successful config is always >= last config attempt. */
   lastConfigAttempt_ = time(nullptr);

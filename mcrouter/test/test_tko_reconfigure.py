@@ -1,4 +1,4 @@
-# Copyright (c) 2015-present, Facebook, Inc.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
 # This source code is licensed under the MIT license found in the LICENSE
 # file in the root directory of this source tree.
@@ -17,7 +17,7 @@ from mcrouter.test.McrouterTestCase import McrouterTestCase
 class TestTkoReconfigure(McrouterTestCase):
     config1 = './mcrouter/test/test_tko_reconfigure1.json'
     config2 = './mcrouter/test/test_tko_reconfigure2.json'
-    extra_args = ['--timeouts-until-tko', '1']
+    extra_args = ['--timeouts-until-tko', '1', '-v', '3']
 
     def tearDown(self):
         McrouterTestCase.tearDown(self)

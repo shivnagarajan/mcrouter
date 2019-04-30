@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #include <memory>
 
@@ -21,6 +20,10 @@
 #include "mcrouter/lib/fbi/cpp/ParsingUtil.h"
 #include "mcrouter/lib/fbi/cpp/util.h"
 #include "mcrouter/lib/network/AccessPoint.h"
+#include "mcrouter/lib/network/AsyncMcClient.h"
+#include "mcrouter/lib/network/NoOpTransport.h"
+#include "mcrouter/lib/network/SecurityOptions.h"
+#include "mcrouter/lib/network/ThriftTransport.h"
 #include "mcrouter/lib/network/gen/MemcacheRouterInfo.h"
 #include "mcrouter/routes/AsynclogRoute.h"
 #include "mcrouter/routes/DestinationRoute.h"
@@ -129,6 +132,11 @@ McRouteHandleProvider<RouterInfo>::makePool(
       timeout = parseTimeout(*jTimeout, "server_timeout");
     }
 
+    std::chrono::milliseconds connectTimeout = timeout;
+    if (auto jConnectTimeout = json.get_ptr("connect_timeout")) {
+      connectTimeout = parseTimeout(*jConnectTimeout, "connect_timeout");
+    }
+
     if (!region.empty() && !cluster.empty()) {
       auto& route = opts.default_route;
       if (region == route.getRegion() && cluster == route.getCluster()) {
@@ -153,8 +161,10 @@ McRouteHandleProvider<RouterInfo>::makePool(
         protocol = mc_ascii_protocol;
       } else if (equalStr("caret", str, folly::AsciiCaseInsensitive())) {
         protocol = mc_caret_protocol;
-      } else if (equalStr("umbrella", str, folly::AsciiCaseInsensitive())) {
-        protocol = mc_umbrella_protocol_DONOTUSE;
+      } else if (equalStr("thrift", str, folly::AsciiCaseInsensitive())) {
+        protocol = mc_thrift_protocol;
+      } else if (equalStr("noop", str, folly::AsciiCaseInsensitive())) {
+        protocol = mc_noop_protocol;
       } else {
         throwLogic("Unknown protocol '{}'", str);
       }
@@ -182,9 +192,38 @@ McRouteHandleProvider<RouterInfo>::makePool(
       }
     }
 
-    bool useSsl = false;
-    if (auto jUseSsl = json.get_ptr("use_ssl")) {
-      useSsl = parseBool(*jUseSsl, "use_ssl");
+    SecurityMech mech = SecurityMech::NONE;
+    if (auto jSecurityMech = json.get_ptr("security_mech")) {
+      auto mechStr = parseString(*jSecurityMech, "security_mech");
+      mech = parseSecurityMech(mechStr);
+    } else if (auto jUseSsl = json.get_ptr("use_ssl")) {
+      // deprecated - prefer security_mech
+      auto useSsl = parseBool(*jUseSsl, "use_ssl");
+      if (useSsl) {
+        mech = SecurityMech::TLS;
+      }
+    }
+
+    folly::Optional<SecurityMech> withinDcMech;
+    if (auto jSecurityMech = json.get_ptr("security_mech_within_dc")) {
+      auto mechStr = parseString(*jSecurityMech, "security_mech_within_dc");
+      withinDcMech = parseSecurityMech(mechStr);
+    }
+
+    folly::Optional<SecurityMech> crossDcMech;
+    if (auto jSecurityMech = json.get_ptr("security_mech_cross_dc")) {
+      auto mechStr = parseString(*jSecurityMech, "security_mech_cross_dc");
+      crossDcMech = parseSecurityMech(mechStr);
+    }
+
+    folly::Optional<uint16_t> withinDcPort;
+    if (auto jPort = json.get_ptr("port_override_within_dc")) {
+      withinDcPort = parseInt(*jPort, "port_override_within_dc", 1, 65535);
+    }
+
+    folly::Optional<uint16_t> crossDcPort;
+    if (auto jPort = json.get_ptr("port_override_cross_dc")) {
+      crossDcPort = parseInt(*jPort, "port_override_cross_dc", 1, 65535);
     }
 
     // default to 0, which doesn't override
@@ -220,9 +259,30 @@ McRouteHandleProvider<RouterInfo>::makePool(
         destinations.push_back(factory.create(server));
         continue;
       }
+
       auto ap = AccessPoint::create(
-          server.stringPiece(), protocol, useSsl, port, enableCompression);
+          server.stringPiece(), protocol, mech, port, enableCompression);
       checkLogic(ap != nullptr, "invalid server {}", server.stringPiece());
+
+      if (withinDcMech.hasValue() || crossDcMech.hasValue() ||
+          withinDcPort.hasValue() || crossDcPort.hasValue()) {
+        bool isInLocalDc = isInLocalDatacenter(ap->getHost());
+        if (isInLocalDc) {
+          if (withinDcMech.hasValue()) {
+            ap->setSecurityMech(withinDcMech.value());
+          }
+          if (withinDcPort.hasValue()) {
+            ap->setPort(withinDcPort.value());
+          }
+        } else {
+          if (crossDcMech.hasValue()) {
+            ap->setSecurityMech(crossDcMech.value());
+          }
+          if (crossDcPort.hasValue()) {
+            ap->setPort(crossDcPort.value());
+          }
+        }
+      }
 
       if (ap->compressed() && proxy_.router().getCodecManager() == nullptr) {
         if (!initCompression(proxy_.router())) {
@@ -233,7 +293,6 @@ McRouteHandleProvider<RouterInfo>::makePool(
               "Disabling compression for host: {}",
               name,
               server.stringPiece());
-
           ap->disableCompression();
         }
       }
@@ -246,20 +305,43 @@ McRouteHandleProvider<RouterInfo>::makePool(
       it->second.push_back(ap);
       folly::StringPiece nameSp = it->first;
 
-      auto pdstn = proxy_.destinationMap()->find(*ap, timeout);
-      if (!pdstn) {
-        pdstn = proxy_.destinationMap()->emplace(
-            std::move(ap), timeout, qosClass, qosPath, RouterInfo::name);
+      if (ap->getProtocol() == mc_thrift_protocol) {
+        using Transport = ThriftTransport<RouterInfo>;
+        destinations.push_back(createDestinationRoute<Transport>(
+            std::move(ap),
+            timeout,
+            connectTimeout,
+            qosClass,
+            qosPath,
+            nameSp,
+            i,
+            poolStatIndex,
+            keepRoutingPrefix));
+      } else if (ap->getProtocol() == mc_noop_protocol) {
+        using Transport = NoOpTransport;
+        destinations.push_back(createDestinationRoute<Transport>(
+            std::move(ap),
+            timeout,
+            connectTimeout,
+            qosClass,
+            qosPath,
+            nameSp,
+            i,
+            poolStatIndex,
+            keepRoutingPrefix));
+      } else {
+        using Transport = AsyncMcClient;
+        destinations.push_back(createDestinationRoute<Transport>(
+            std::move(ap),
+            timeout,
+            connectTimeout,
+            qosClass,
+            qosPath,
+            nameSp,
+            i,
+            poolStatIndex,
+            keepRoutingPrefix));
       }
-      pdstn->updateShortestTimeout(timeout);
-
-      destinations.push_back(makeDestinationRoute<RouterInfo>(
-          std::move(pdstn),
-          nameSp,
-          i,
-          poolStatIndex,
-          timeout,
-          keepRoutingPrefix));
     } // servers
 
     return pools_.emplace(std::move(name), std::move(destinations))
@@ -267,6 +349,35 @@ McRouteHandleProvider<RouterInfo>::makePool(
   } catch (const std::exception& e) {
     throwLogic("Pool {}: {}", name, e.what());
   }
+}
+
+template <class RouterInfo>
+template <class Transport>
+typename McRouteHandleProvider<RouterInfo>::RouteHandlePtr
+McRouteHandleProvider<RouterInfo>::createDestinationRoute(
+    std::shared_ptr<AccessPoint> ap,
+    std::chrono::milliseconds timeout,
+    std::chrono::milliseconds connectTimeout,
+    uint64_t qosClass,
+    uint64_t qosPath,
+    folly::StringPiece poolName,
+    size_t indexInPool,
+    int32_t poolStatIndex,
+    bool keepRoutingPrefix) {
+  auto pdstn = proxy_.destinationMap()->template find<Transport>(*ap, timeout);
+  if (!pdstn) {
+    pdstn = proxy_.destinationMap()->template emplace<Transport>(
+        std::move(ap), timeout, qosClass, qosPath, RouterInfo::name);
+  }
+  pdstn->updateShortestTimeout(connectTimeout, timeout);
+
+  return makeDestinationRoute<RouterInfo, Transport>(
+      std::move(pdstn),
+      poolName,
+      indexInPool,
+      poolStatIndex,
+      timeout,
+      keepRoutingPrefix);
 }
 
 template <class RouterInfo>
@@ -370,15 +481,16 @@ McRouteHandleProvider<RouterInfo>::buildCheckedRouteMap() {
   // extra provider functions. So those code paths must be checked by other
   // means.
   for (auto it : buildRouteMap()) {
-    checkedRouteMap.emplace(it.first, [
-      factoryFunc = std::move(it.second),
-      rhName = it.first
-    ](RouteHandleFactory<RouteHandleIf> & factory, const folly::dynamic& json) {
-      auto rh = factoryFunc(factory, json);
-      checkLogic(
-          rh != nullptr, folly::sformat("make{} returned nullptr", rhName));
-      return rh;
-    });
+    checkedRouteMap.emplace(
+        it.first,
+        [factoryFunc = std::move(it.second), rhName = it.first](
+            RouteHandleFactory<RouteHandleIf>& factory,
+            const folly::dynamic& json) {
+          auto rh = factoryFunc(factory, json);
+          checkLogic(
+              rh != nullptr, folly::sformat("make{} returned nullptr", rhName));
+          return rh;
+        });
   }
 
   return checkedRouteMap;

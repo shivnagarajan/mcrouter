@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2016-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #pragma once
 
@@ -72,6 +71,12 @@ class CarbonRouterInstance
       folly::StringPiece persistenceId);
 
   /**
+   * If an instance with the given persistenceId already exists,
+   * returns true. Otherwise returns false.
+   */
+  static bool hasInstance(folly::StringPiece persistenceId);
+
+  /**
    * Intended for short-lived instances with unusual configs
    * (i.e. for debugging).
    *
@@ -126,6 +131,8 @@ class CarbonRouterInstance
    *   pointer to the proxy otherwise.
    */
   Proxy<RouterInfo>* getProxy(size_t index) const;
+
+  const std::vector<Proxy<RouterInfo>*> getProxies() const;
 
   CarbonRouterInstance(const CarbonRouterInstance&) = delete;
   CarbonRouterInstance& operator=(const CarbonRouterInstance&) = delete;

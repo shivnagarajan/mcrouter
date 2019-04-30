@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2016-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #pragma once
 
@@ -103,6 +102,35 @@ class ProxyRequestContextWithInfo : public ProxyRequestContext {
   }
 
   /**
+   * Called before a request is sent
+   */
+  template <class Request>
+  void onBeforeRequestSent(
+      const folly::StringPiece poolName,
+      const AccessPoint& ap,
+      folly::StringPiece strippedRoutingPrefix,
+      const Request& request,
+      RequestClass requestClass,
+      const int64_t startTimeUs) {
+    if (recording()) {
+      return;
+    }
+
+    RpcStatsContext rpcStatsContext;
+    RequestLoggerContext loggerContext(
+        poolName,
+        ap,
+        strippedRoutingPrefix,
+        requestClass,
+        startTimeUs,
+        /* endTimeUs */ 0,
+        carbon::Result::UNKNOWN,
+        rpcStatsContext);
+    assert(additionalLogger_.hasValue());
+    additionalLogger_->logBeforeRequestSent(request, loggerContext);
+  }
+
+  /**
    * Called once a reply is received to record a stats sample if required.
    */
   template <class Request>
@@ -116,7 +144,7 @@ class ProxyRequestContextWithInfo : public ProxyRequestContext {
       const int64_t startTimeUs,
       const int64_t endTimeUs,
       const int32_t poolStatIndex,
-      const ReplyStatsContext replyStatsContext) {
+      const RpcStatsContext rpcStatsContext) {
     if (recording()) {
       return;
     }
@@ -133,16 +161,23 @@ class ProxyRequestContextWithInfo : public ProxyRequestContext {
         startTimeUs,
         endTimeUs,
         reply.result(),
-        replyStatsContext);
+        rpcStatsContext);
     assert(logger_.hasValue());
     logger_->template log<Request>(loggerContext);
     assert(additionalLogger_.hasValue());
     additionalLogger_->log(request, reply, loggerContext);
   }
 
- private:
+ public:
+  Proxy<RouterInfo>& proxyWithRouterInfo() const {
+    return proxy_;
+  }
+
   using AdditionalLogger =
       typename detail::RouterAdditionalLogger<RouterInfo>::type;
+  AdditionalLogger& additionalLogger() {
+    return *additionalLogger_;
+  }
 
  protected:
   ProxyRequestContextWithInfo(
@@ -191,9 +226,9 @@ class ProxyRequestContextTyped
    *
    * WARNING: This function can be dangerous with new typed requests.
    * For typed requests,
-   *   ctx->sendReply(mc_res_local_error, "Error message")
+   *   ctx->sendReply(carbon::Result::LOCAL_ERROR, "Error message")
    * does the right thing, while
-   *   ctx->sendReply(mc_res_found, "value")
+   *   ctx->sendReply(carbon::Result::FOUND, "value")
    * does the wrong thing.
    */
   template <class... Args>
@@ -228,8 +263,7 @@ class ProxyRequestContextTyped
       Proxy<RouterInfo>& pr,
       const Request& req,
       ProxyRequestPriority priority__)
-      : ProxyRequestContextWithInfo<RouterInfo>(pr, priority__),
-        req_(&req) {}
+      : ProxyRequestContextWithInfo<RouterInfo>(pr, priority__), req_(&req) {}
 
   std::shared_ptr<const ProxyConfig<RouterInfo>> config_;
 
@@ -254,8 +288,8 @@ createProxyRequestContext(
     F&& f,
     ProxyRequestPriority priority = ProxyRequestPriority::kCritical);
 
-} // mcrouter
-} // memcache
-} // facebook
+} // namespace mcrouter
+} // namespace memcache
+} // namespace facebook
 
 #include "ProxyRequestContextTyped-inl.h"

@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #include "ProxyDestinationMap.h"
 
@@ -17,6 +16,7 @@
 #include "mcrouter/McrouterLogFailure.h"
 #include "mcrouter/ProxyBase.h"
 #include "mcrouter/ProxyDestination.h"
+#include "mcrouter/ProxyDestinationBase.h"
 #include "mcrouter/lib/fbi/cpp/util.h"
 #include "mcrouter/lib/network/AccessPoint.h"
 
@@ -24,11 +24,9 @@ namespace facebook {
 namespace memcache {
 namespace mcrouter {
 
-namespace {
-
-std::string genProxyDestinationKey(
+std::string ProxyDestinationMap::genProxyDestinationKey(
     const AccessPoint& ap,
-    std::chrono::milliseconds timeout) {
+    std::chrono::milliseconds timeout) const {
   if (ap.getProtocol() == mc_ascii_protocol) {
     // we cannot send requests with different timeouts for ASCII, since
     // it will break in-order nature of the protocol
@@ -38,11 +36,10 @@ std::string genProxyDestinationKey(
   }
 }
 
-} // anonymous
-
 struct ProxyDestinationMap::StateList {
-  using List =
-      folly::IntrusiveList<ProxyDestination, &ProxyDestination::stateListHook_>;
+  using List = folly::IntrusiveList<
+      ProxyDestinationBase,
+      &ProxyDestinationBase::stateListHook_>;
   List list;
 };
 
@@ -52,45 +49,8 @@ ProxyDestinationMap::ProxyDestinationMap(ProxyBase* proxy)
       inactive_(std::make_unique<StateList>()),
       inactivityTimeout_(0) {}
 
-std::shared_ptr<ProxyDestination> ProxyDestinationMap::emplace(
-    std::shared_ptr<AccessPoint> ap,
-    std::chrono::milliseconds timeout,
-    uint64_t qosClass,
-    uint64_t qosPath,
-    folly::StringPiece routerInfoName) {
-  auto key = genProxyDestinationKey(*ap, timeout);
-  auto destination = ProxyDestination::create(
-      *proxy_, std::move(ap), timeout, qosClass, qosPath, routerInfoName);
-  {
-    std::lock_guard<std::mutex> lck(destinationsLock_);
-    auto destIt = destinations_.emplace(key, destination);
-    destination->pdstnKey_ = destIt.first->first;
-  }
-
-  // Update shared area of ProxyDestinations with same key from different
-  // threads. This shared area is represented with TkoTracker class.
-  proxy_->router().tkoTrackerMap().updateTracker(
-      *destination, proxy_->router().opts().failures_until_tko);
-
-  return destination;
-}
-
-/**
- * If ProxyDestination is already stored in this object - returns it;
- * otherwise, returns nullptr.
- */
-std::shared_ptr<ProxyDestination> ProxyDestinationMap::find(
-    const AccessPoint& ap,
-    std::chrono::milliseconds timeout) const {
-  auto key = genProxyDestinationKey(ap, timeout);
-  {
-    std::lock_guard<std::mutex> lck(destinationsLock_);
-    return find(key);
-  }
-}
-
 // Note: caller must be holding destionationsLock_.
-std::shared_ptr<ProxyDestination> ProxyDestinationMap::find(
+std::shared_ptr<ProxyDestinationBase> ProxyDestinationMap::find(
     const std::string& key) const {
   auto it = destinations_.find(key);
   if (it == destinations_.end()) {
@@ -99,7 +59,7 @@ std::shared_ptr<ProxyDestination> ProxyDestinationMap::find(
   return it->second.lock();
 }
 
-void ProxyDestinationMap::removeDestination(ProxyDestination& destination) {
+void ProxyDestinationMap::removeDestination(ProxyDestinationBase& destination) {
   if (destination.stateList_ == active_.get()) {
     active_->list.erase(StateList::List::s_iterator_to(destination));
   } else if (destination.stateList_ == inactive_.get()) {
@@ -107,11 +67,11 @@ void ProxyDestinationMap::removeDestination(ProxyDestination& destination) {
   }
   {
     std::lock_guard<std::mutex> lck(destinationsLock_);
-    destinations_.erase(destination.pdstnKey_);
+    destinations_.erase(destination.key());
   }
 }
 
-void ProxyDestinationMap::markAsActive(ProxyDestination& destination) {
+void ProxyDestinationMap::markAsActive(ProxyDestinationBase& destination) {
   if (destination.stateList_ == active_.get()) {
     return;
   }
@@ -152,8 +112,14 @@ void ProxyDestinationMap::scheduleTimer(bool initialAttempt) {
   }
 }
 
+void ProxyDestinationMap::releaseProxyDestinationRef(
+    std::shared_ptr<const ProxyDestinationBase>&& destination) {
+  ProxyBase& proxy = destination->proxy();
+  proxy.eventBase().runInEventBaseThread([dst = std::move(destination)]() {});
+}
+
 ProxyDestinationMap::~ProxyDestinationMap() {}
 
-} // mcrouter
-} // memcache
-} // facebook
+} // namespace mcrouter
+} // namespace memcache
+} // namespace facebook

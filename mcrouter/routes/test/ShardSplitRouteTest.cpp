@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2016-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #include <memory>
 #include <random>
@@ -13,7 +12,7 @@
 
 #include <folly/dynamic.h>
 
-#include "mcrouter/lib/network/gen/Memcache.h"
+#include "mcrouter/lib/network/gen/MemcacheMessages.h"
 #include "mcrouter/routes/ShardSplitRoute.h"
 #include "mcrouter/routes/test/RouteHandleTestUtil.h"
 #include "mcrouter/routes/test/ShardSplitRouteTestUtil.h"
@@ -30,9 +29,9 @@ template <class Request>
 void testDirectOp(ShardSplitter splitter) {
   globals::HostidMock hostidMock(1);
   vector<std::shared_ptr<TestHandle>> handles{make_shared<TestHandle>(
-      GetRouteTestData(mc_res_found, "a"),
-      UpdateRouteTestData(mc_res_found),
-      DeleteRouteTestData(mc_res_found))};
+      GetRouteTestData(carbon::Result::FOUND, "a"),
+      UpdateRouteTestData(carbon::Result::FOUND),
+      DeleteRouteTestData(carbon::Result::FOUND))};
   auto rh = get_route_handles(handles)[0];
   McrouterRouteHandle<ShardSplitRoute<McrouterRouterInfo>> splitRoute(
       rh, splitter);
@@ -41,7 +40,7 @@ void testDirectOp(ShardSplitter splitter) {
   fm.run([&] {
     mockFiberContext();
     auto reply = splitRoute.route(Request("test:123zz:"));
-    EXPECT_EQ(mc_res_found, reply.result());
+    EXPECT_EQ(carbon::Result::FOUND, reply.result());
   });
 
   EXPECT_EQ(vector<string>{"test:123zz:"}, handles[0]->saw_keys);
@@ -82,7 +81,7 @@ TEST(shardSplitRoute, simpleSplit_deleteFanout) {
   }
 
   vector<std::shared_ptr<TestHandle>> handles{
-      make_shared<TestHandle>(DeleteRouteTestData(mc_res_found))};
+      make_shared<TestHandle>(DeleteRouteTestData(carbon::Result::FOUND))};
   auto rh = get_route_handles(handles)[0];
   ShardSplitter splitter(folly::dynamic::object("123", kNumSplits));
   McrouterRouteHandle<ShardSplitRoute<McrouterRouterInfo>> splitRoute(
@@ -92,7 +91,7 @@ TEST(shardSplitRoute, simpleSplit_deleteFanout) {
   fm.run([&] {
     mockFiberContext();
     auto reply = splitRoute.route(McDeleteRequest("test:123:"));
-    EXPECT_EQ(mc_res_found, reply.result());
+    EXPECT_EQ(carbon::Result::FOUND, reply.result());
   });
 
   EXPECT_EQ(allKeys, handles[0]->saw_keys);

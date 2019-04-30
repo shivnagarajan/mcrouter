@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #pragma once
 
@@ -14,11 +13,10 @@
 #include "mcrouter/McrouterFiberContext.h"
 #include "mcrouter/ProxyDestination.h"
 #include "mcrouter/ProxyDestinationMap.h"
-#include "mcrouter/lib/McOperation.h"
 #include "mcrouter/lib/Reply.h"
 #include "mcrouter/lib/RouteHandleTraverser.h"
 #include "mcrouter/lib/mc/msg.h"
-#include "mcrouter/lib/network/gen/Memcache.h"
+#include "mcrouter/lib/network/gen/MemcacheMessages.h"
 #include "mcrouter/lib/routes/AllSyncRoute.h"
 #include "mcrouter/routes/BigValueRouteIf.h"
 #include "mcrouter/routes/RouteSelectorMap.h"
@@ -47,10 +45,10 @@ class ProxyRoute {
           routeSelectors);
 
   template <class Request>
-  void traverse(
+  bool traverse(
       const Request& req,
       const RouteHandleTraverser<typename RouterInfo::RouteHandleIf>& t) const {
-    t(*root_, req);
+    return t(*root_, req);
   }
 
   template <class Request>

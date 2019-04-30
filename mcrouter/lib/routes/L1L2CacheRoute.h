@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2015-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #pragma once
 
@@ -13,15 +12,13 @@
 #include <folly/fibers/FiberManager.h>
 #include <folly/io/IOBuf.h>
 
-#include "mcrouter/lib/McOperation.h"
 #include "mcrouter/lib/McResUtil.h"
-#include "mcrouter/lib/Operation.h"
 #include "mcrouter/lib/Reply.h"
 #include "mcrouter/lib/RouteHandleTraverser.h"
 #include "mcrouter/lib/carbon/RoutingGroups.h"
 #include "mcrouter/lib/fbi/cpp/util.h"
 #include "mcrouter/lib/mc/msg.h"
-#include "mcrouter/lib/network/gen/Memcache.h"
+#include "mcrouter/lib/network/gen/MemcacheMessages.h"
 
 namespace facebook {
 namespace memcache {
@@ -50,11 +47,13 @@ class L1L2CacheRoute {
   }
 
   template <class Request>
-  void traverse(
+  bool traverse(
       const Request& req,
       const RouteHandleTraverser<RouteHandleIf>& t) const {
-    t(*l1_, req);
-    t(*l2_, req);
+    if (t(*l1_, req)) {
+      return true;
+    }
+    return t(*l2_, req);
   }
 
   L1L2CacheRoute(

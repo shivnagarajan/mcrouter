@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #include "MockMc.h"
 
@@ -29,6 +28,7 @@ MockMc::Item::Item(std::unique_ptr<folly::IOBuf> v) : value(std::move(v)) {}
 
 MockMc::Item::Item(const folly::IOBuf& v, int32_t t, uint64_t f)
     : value(v.clone()),
+      creationTime(time(nullptr)),
       exptime(t != 0 && t <= 60 * 60 * 24 * 30 ? t + time(nullptr) : t),
       flags(f) {}
 
@@ -37,6 +37,17 @@ const MockMc::Item* MockMc::get(folly::StringPiece key) {
   if (it == citems_.end() || it->second.state != CacheItem::CACHE) {
     return nullptr;
   }
+  return &it->second.item;
+}
+
+const MockMc::Item* MockMc::gat(int32_t newExptime, folly::StringPiece key) {
+  auto it = findUnexpired(key);
+  if (it == citems_.end() || it->second.state != CacheItem::CACHE) {
+    return nullptr;
+  }
+  it->second.item.exptime = newExptime != 0 && newExptime <= 60 * 60 * 24 * 30
+      ? newExptime + time(nullptr)
+      : newExptime;
   return &it->second.item;
 }
 
@@ -189,6 +200,19 @@ std::pair<const MockMc::Item*, uint64_t> MockMc::gets(folly::StringPiece key) {
   if (it == citems_.end() || it->second.state != CacheItem::CACHE) {
     return std::make_pair<Item*, uint64_t>(nullptr, 0);
   }
+  return std::make_pair(&it->second.item, it->second.casToken);
+}
+
+std::pair<const MockMc::Item*, uint64_t> MockMc::gats(
+    int32_t newExptime,
+    folly::StringPiece key) {
+  auto it = findUnexpired(key);
+  if (it == citems_.end() || it->second.state != CacheItem::CACHE) {
+    return std::make_pair<Item*, uint64_t>(nullptr, 0);
+  }
+  it->second.item.exptime = newExptime != 0 && newExptime <= 60 * 60 * 24 * 30
+      ? newExptime + time(nullptr)
+      : newExptime;
   return std::make_pair(&it->second.item, it->second.casToken);
 }
 

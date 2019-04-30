@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #pragma once
 
@@ -15,7 +14,7 @@
 
 #include "mcrouter/McrouterFiberContext.h"
 #include "mcrouter/lib/McResUtil.h"
-#include "mcrouter/lib/Operation.h"
+#include "mcrouter/lib/Reply.h"
 #include "mcrouter/lib/RouteHandleTraverser.h"
 #include "mcrouter/lib/carbon/RoutingGroups.h"
 #include "mcrouter/lib/config/RouteHandleBuilder.h"
@@ -38,17 +37,6 @@ class MissFailoverRoute {
   using RouteHandleIf = typename RouterInfo::RouteHandleIf;
 
  public:
-  static std::string routeName() {
-    return "miss-failover";
-  }
-
-  template <class Request>
-  void traverse(
-      const Request& req,
-      const RouteHandleTraverser<RouteHandleIf>& t) const {
-    t(targets_, req);
-  }
-
   explicit MissFailoverRoute(
       std::vector<std::shared_ptr<RouteHandleIf>> targets,
       bool returnBestOnError = false)
@@ -56,36 +44,15 @@ class MissFailoverRoute {
     assert(targets_.size() > 1);
   }
 
-  template <class Request>
-  ReplyT<Request> routeImpl(const Request& req) const {
-    auto reply = targets_[0]->route(req);
-    if (isHitResult(reply.result())) {
-      return reply;
-    }
+  static std::string routeName() {
+    return "miss-failover";
+  }
 
-    // Failover
-    return fiber_local<RouterInfo>::runWithLocals(
-        [ this, &req, bestReply = std::move(reply) ]() mutable {
-          fiber_local<RouterInfo>::addRequestClass(RequestClass::kFailover);
-          for (size_t i = 1; i < targets_.size(); ++i) {
-            auto failoverReply = targets_[i]->route(req);
-            if (isHitResult(failoverReply.result())) {
-              return failoverReply;
-            }
-            if (returnBestOnError_) {
-              // Prefer returning a miss from a healthy host rather than
-              // an error from the last broken host.
-              if (!worseThan(failoverReply.result(), bestReply.result())) {
-                // This reply is "better" than we already have.
-                bestReply = std::move(failoverReply);
-              }
-            } else {
-              // Return reply from the last host, no matter if it's broken.
-              bestReply = std::move(failoverReply);
-            }
-          }
-          return bestReply;
-        });
+  template <class Request>
+  bool traverse(
+      const Request& req,
+      const RouteHandleTraverser<RouteHandleIf>& t) const {
+    return t(targets_, req);
   }
 
   template <class Request>
@@ -111,6 +78,43 @@ class MissFailoverRoute {
  private:
   const std::vector<std::shared_ptr<RouteHandleIf>> targets_;
   const bool returnBestOnError_;
+
+  bool shouldFailover(const carbon::Result replyResult) const {
+    return !isHitResult(replyResult) && (replyResult != carbon::Result::OK);
+  }
+
+  template <class Request>
+  ReplyT<Request> routeImpl(const Request& req) const {
+    auto reply = targets_[0]->route(req);
+    if (!shouldFailover(reply.result())) {
+      return reply;
+    }
+
+    // Failover
+    return fiber_local<RouterInfo>::runWithLocals(
+        [ this, &req, bestReply = std::move(reply) ]() mutable {
+          fiber_local<RouterInfo>::addRequestClass(RequestClass::kFailover);
+          for (size_t i = 1; i < targets_.size(); ++i) {
+            auto failoverReply = targets_[i]->route(req);
+            if (!shouldFailover(failoverReply.result())) {
+              return failoverReply;
+            }
+            if (returnBestOnError_) {
+              // Prefer returning a miss from a healthy host rather than
+              // an error from the last broken host.
+              if (!worseThan(failoverReply.result(), bestReply.result())) {
+                // This reply is "better" than we already have.
+                bestReply = std::move(failoverReply);
+              }
+            } else {
+              // Return reply from the last host, no matter if it's broken.
+              bestReply = std::move(failoverReply);
+            }
+          }
+          return bestReply;
+        });
+  }
+
 };
 
 namespace detail {

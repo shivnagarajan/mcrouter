@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #pragma once
 
@@ -18,9 +17,9 @@
 #include "mcrouter/config.h"
 #include "mcrouter/lib/FailoverContext.h"
 #include "mcrouter/lib/FailoverErrorsSettings.h"
-#include "mcrouter/lib/Operation.h"
+#include "mcrouter/lib/Reply.h"
 #include "mcrouter/lib/RouteHandleTraverser.h"
-#include "mcrouter/lib/network/gen/Memcache.h"
+#include "mcrouter/lib/network/gen/MemcacheMessages.h"
 #include "mcrouter/routes/FailoverPolicy.h"
 #include "mcrouter/routes/FailoverRateLimiter.h"
 
@@ -73,14 +72,13 @@ class FailoverRoute {
   }
 
   template <class Request>
-  void traverse(
+  bool traverse(
       const Request& req,
       const RouteHandleTraverser<RouteHandleIf>& t) const {
     if (fiber_local<RouterInfo>::getFailoverDisabled()) {
-      t(*targets_[0], req);
-    } else {
-      t(targets_, req);
+      return t(*targets_[0], req);
     }
+    return t(targets_, req);
   }
 
   FailoverRoute(
@@ -122,7 +120,7 @@ class FailoverRoute {
       mutReq.leaseToken() = item->originalToken;
       proxy.stats().increment(redirected_lease_set_count_stat);
       if (targets_.size() <= item->routeHandleChildIndex) {
-        McLeaseSetReply errorReply(mc_res_local_error);
+        McLeaseSetReply errorReply(carbon::Result::LOCAL_ERROR);
         errorReply.message() = "LeaseSet failover destination out-of-range.";
         return errorReply;
       }
@@ -185,6 +183,7 @@ class FailoverRoute {
     SCOPE_EXIT {
       if (conditionalFailover) {
         proxy.stats().increment(failover_conditional_stat);
+        proxy.stats().increment(failover_conditional_count_stat);
       }
     };
 
@@ -244,6 +243,7 @@ class FailoverRoute {
                 normalReply,
                 failoverReply);
             logFailover(proxy, failoverContext);
+            carbon::setIsFailoverIfPresent(failoverReply, true);
             return failoverReply;
           };
 

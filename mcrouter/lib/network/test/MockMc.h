@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #pragma once
 
@@ -25,6 +24,7 @@ class MockMc {
  public:
   struct Item {
     std::unique_ptr<folly::IOBuf> value;
+    int32_t creationTime{0};
     int32_t exptime{0};
     uint64_t flags{0};
 
@@ -32,6 +32,7 @@ class MockMc {
     template <class Request>
     explicit Item(const Request& req)
         : value(req.value().clone()),
+          creationTime(time(nullptr)),
           exptime(
               req.exptime() != 0 && req.exptime() <= 60 * 60 * 24 * 30
                   ? req.exptime() + time(nullptr)
@@ -46,6 +47,12 @@ class MockMc {
    *          (expired/evicted/was never set); pointer to the item otherwise.
    */
   const Item* get(folly::StringPiece key);
+
+  /**
+   * @return  nullptr if the item doesn't exist in the cache
+   *          (expired/evicted/was never set); pointer to the item otherwise.
+   */
+  const Item* gat(int32_t newExptime, folly::StringPiece key);
 
   /**
    * Store item with the given key.
@@ -129,6 +136,10 @@ class MockMc {
   LeaseSetResult leaseSet(folly::StringPiece key, Item item, uint64_t token);
 
   std::pair<const Item*, uint64_t> gets(folly::StringPiece key);
+
+  std::pair<const Item*, uint64_t> gats(
+      int32_t newExptime,
+      folly::StringPiece key);
 
   enum class CasResult { NOT_FOUND, STORED, EXISTS };
 

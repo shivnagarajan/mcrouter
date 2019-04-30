@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #pragma once
 
@@ -26,7 +25,9 @@ struct AccessPoint;
 namespace mcrouter {
 
 class ProxyBase;
+template <class Transport>
 class ProxyDestination;
+class ProxyDestinationBase;
 
 /**
  * Manages lifetime of ProxyDestinations. Main goal is to reuse same
@@ -41,6 +42,8 @@ class ProxyDestination;
  * opened connection to this destination and there were requests during last
  * reset_inactive_connection_interval ms routed to this destination.
  * 'Inactive' means there were no requests and connection may be closed.
+ *
+ * Note: There's one ProxyDestinationMap per proxy thread.
  */
 class ProxyDestinationMap {
  public:
@@ -50,14 +53,19 @@ class ProxyDestinationMap {
    * If ProxyDestination is already stored in this object - returns it;
    * otherwise, returns nullptr.
    */
-  std::shared_ptr<ProxyDestination> find(
+  template <class Transport>
+  std::shared_ptr<ProxyDestination<Transport>> find(
       const AccessPoint& ap,
       std::chrono::milliseconds timeout) const;
   /**
    * If ProxyDestination is already stored in this object - returns it;
    * otherwise creates a new one.
+   *
+   * @throws std::logic_error If Transport is not compatible with
+   *                          AccessPoint::getProtocol().
    */
-  std::shared_ptr<ProxyDestination> emplace(
+  template <class Transport>
+  std::shared_ptr<ProxyDestination<Transport>> emplace(
       std::shared_ptr<AccessPoint> ap,
       std::chrono::milliseconds timeout,
       uint64_t qosClass,
@@ -67,13 +75,13 @@ class ProxyDestinationMap {
   /**
    * Remove destination from both active and inactive lists
    */
-  void removeDestination(ProxyDestination& destination);
+  void removeDestination(ProxyDestinationBase& destination);
 
   /**
    * Mark destination as 'active', so it won't be closed on next
    * resetAllInactive call
    */
-  void markAsActive(ProxyDestination& destination);
+  void markAsActive(ProxyDestinationBase& destination);
 
   /**
    * Close all 'inactive' destinations i.e. destinations which weren't marked
@@ -95,17 +103,14 @@ class ProxyDestinationMap {
    */
   template <typename Func>
   void foreachDestinationSynced(Func&& f) {
-    // The toFree vector is used to delay destruction as we have the following
-    // race condition: ProxyDestination destructor will try to grab a lock
-    // on destionationsLock_, which is already locked here.
-    std::vector<std::shared_ptr<const ProxyDestination>> toFree;
-    {
-      std::lock_guard<std::mutex> lock(destinationsLock_);
-      for (auto& it : destinations_) {
-        if (std::shared_ptr<const ProxyDestination> d = it.second.lock()) {
-          f(it.first, *d);
-          toFree.push_back(std::move(d));
-        }
+    std::lock_guard<std::mutex> lock(destinationsLock_);
+    for (auto& it : destinations_) {
+      if (std::shared_ptr<const ProxyDestinationBase> dst = it.second.lock()) {
+        f(it.first, *dst);
+        // Disposal of the ProxyDestination object should execute on the proxy
+        // thread to prevent races in accessing members of ProxyDestination
+        // that are only accessed within eventbase-executed methods.
+        releaseProxyDestinationRef(std::move(dst));
       }
     }
   }
@@ -116,7 +121,8 @@ class ProxyDestinationMap {
   struct StateList;
 
   ProxyBase* proxy_;
-  folly::StringKeyedUnorderedMap<std::weak_ptr<ProxyDestination>> destinations_;
+  folly::StringKeyedUnorderedMap<std::weak_ptr<ProxyDestinationBase>>
+      destinations_;
   mutable std::mutex destinationsLock_;
 
   std::unique_ptr<StateList> active_;
@@ -130,7 +136,7 @@ class ProxyDestinationMap {
    * otherwise, returns nullptr.
    * Note: caller must be holding destionationsLock_.
    */
-  std::shared_ptr<ProxyDestination> find(const std::string& key) const;
+  std::shared_ptr<ProxyDestinationBase> find(const std::string& key) const;
 
   /**
    * Schedules timeout for resetting inactive connections.
@@ -138,7 +144,23 @@ class ProxyDestinationMap {
    * @param initial  true iff this an initial attempt to schedule timer.
    */
   void scheduleTimer(bool initialAttempt);
+
+  /**
+   * Generates the key to be used in this map for a given (pdst, timeout) pair.
+   */
+  std::string genProxyDestinationKey(
+      const AccessPoint& ap,
+      std::chrono::milliseconds timeout) const;
+
+  /*
+   * Releases the shared_ptr reference on the destination's event-base.
+   */
+  static void releaseProxyDestinationRef(
+      std::shared_ptr<const ProxyDestinationBase>&& destination);
 };
+
 } // namespace mcrouter
 } // namespace memcache
 } // namespace facebook
+
+#include "mcrouter/ProxyDestinationMap-inl.h"

@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2016-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #include <memory>
 #include <thread>
@@ -64,7 +63,7 @@ TEST(CarbonRouterClient, basicUsageSameThreadClient) {
     threads.emplace_back([evb = std::move(evb)]() { evb->loopForever(); });
   }
   auto router = CarbonRouterInstance<MemcacheRouterInfo>::init(
-      "sameThreadClientTest", opts, evbs);
+      "basicUsageSameThreadClient", opts, evbs);
 
   // When using createSameThreadClient(), users must ensure that client->send()
   // is only ever called on the same thread as the associated Proxy.
@@ -96,9 +95,9 @@ TEST(CarbonRouterClient, basicUsageSameThreadClient) {
     auto reqRawPtr = req.get();
     client->send(
         *reqRawPtr,
-        [ req = std::move(req), &replyReceived ](
+        [req = std::move(req), &replyReceived](
             const McGetRequest&, McGetReply&& reply) {
-          EXPECT_EQ(mc_res_notfound, reply.result());
+          EXPECT_EQ(carbon::Result::NOTFOUND, reply.result());
           replyReceived = true;
         });
   });
@@ -124,11 +123,13 @@ TEST(CarbonRouterClient, basicUsageRemoteThreadClient) {
   opts.config_str = R"({ "route": "NullRoute" })";
 
   auto router = CarbonRouterInstance<MemcacheRouterInfo>::init(
-      "remoteThreadClientTest", opts);
+      "basicUsageRemoteThreadClient", opts);
 
   // Create client that can safely send requests through a Proxy on another
   // thread
-  auto client = router->createClient(0 /* max_outstanding_requests */);
+  auto client = router->createClient(
+      0 /* max_outstanding_requests */,
+      false /* max_outstanding_requests_error */);
 
   // Note, as in the previous test, that req is kept alive through the end of
   // the callback provided to client->send() below.
@@ -140,7 +141,46 @@ TEST(CarbonRouterClient, basicUsageRemoteThreadClient) {
 
   client->send(
       req, [&baton, &replyReceived](const McGetRequest&, McGetReply&& reply) {
-        EXPECT_EQ(mc_res_notfound, reply.result());
+        EXPECT_EQ(carbon::Result::NOTFOUND, reply.result());
+        replyReceived = true;
+        baton.post();
+      });
+
+  // Ensure proxies have a chance to send all outstanding requests. Note the
+  // extra synchronization required when using a remote-thread client.
+  baton.wait();
+  router->shutdown();
+  EXPECT_TRUE(replyReceived);
+}
+
+TEST(CarbonRouterClient, basicUsageRemoteThreadClientThreadAffinity) {
+  // This test is a lot like the previous one, except this test demonstrates
+  // the use of a client that can safely send a request through a Proxy
+  // on another thread with thread affinity.
+  auto opts = defaultTestOptions();
+  opts.config_str = R"({ "route": "NullRoute" })";
+  opts.thread_affinity = true;
+
+  auto router = CarbonRouterInstance<MemcacheRouterInfo>::init(
+      "basicUsageRemoteThreadClientThreadAffinity", opts);
+
+  // Create client that can safely send requests through a Proxy on another
+  // thread
+  auto client = router->createClient(
+      0 /* max_outstanding_requests */,
+      false /* max_outstanding_requests_error */);
+
+  // Note, as in the previous test, that req is kept alive through the end of
+  // the callback provided to client->send() below.
+  // Also note that we are careful not to modify req while the proxy (in this
+  // case, on another thread) may be processing it.
+  const McGetRequest req("key");
+  bool replyReceived = false;
+  folly::fibers::Baton baton;
+
+  client->send(
+      req, [&baton, &replyReceived](const McGetRequest&, McGetReply&& reply) {
+        EXPECT_EQ(carbon::Result::NOTFOUND, reply.result());
         replyReceived = true;
         baton.post();
       });
@@ -159,7 +199,7 @@ TEST(CarbonRouterClient, remoteThreadStatsRequestUsage) {
   opts.config_str = R"({ "route": "NullRoute" })";
 
   auto router = CarbonRouterInstance<MemcacheRouterInfo>::init(
-      "remoteThreadClientTest", opts);
+      "remoteThreadStatsRequestUsage", opts);
 
   // Create client that can safely send requests through a Proxy on another
   // thread
@@ -177,7 +217,7 @@ TEST(CarbonRouterClient, remoteThreadStatsRequestUsage) {
       req,
       [&baton, &replyReceived](const McStatsRequest&, McStatsReply&& reply) {
         EXPECT_GT(reply.stats().size(), 1);
-        EXPECT_EQ(mc_res_ok, reply.result());
+        EXPECT_EQ(carbon::Result::OK, reply.result());
         replyReceived = true;
         baton.post();
       });

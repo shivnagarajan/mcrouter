@@ -1,13 +1,12 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #include "mcrouter/lib/Reply.h"
 #include "mcrouter/lib/network/FBTrace.h"
-#include "mcrouter/lib/network/ReplyStatsContext.h"
+#include "mcrouter/lib/network/RpcStatsContext.h"
 
 namespace facebook {
 namespace memcache {
@@ -16,12 +15,12 @@ template <class Request>
 ReplyT<Request> AsyncMcClientImpl::sendSync(
     const Request& request,
     std::chrono::milliseconds timeout,
-    ReplyStatsContext* replyContext) {
+    RpcStatsContext* rpcContext) {
   DestructorGuard dg(this);
 
   assert(folly::fibers::onFiber());
 
-  if (maxPending_ != 0 && getPendingRequestCount() >= maxPending_) {
+  if (maxPending_ != 0 && queue_.getPendingRequestCount() >= maxPending_) {
     return createReply<Request>(
         ErrorReply,
         folly::sformat(
@@ -41,14 +40,15 @@ ReplyT<Request> AsyncMcClientImpl::sendSync(
       queue_,
       [](ParserT& parser) { parser.expectNext<Request>(); },
       requestStatusCallbacks_.onStateChange,
-      supportedCompressionCodecs_);
+      supportedCompressionCodecs_,
+      connectionOptions_.payloadFormat);
   sendCommon(ctx);
 
   // Wait for the reply.
   auto reply = ctx.waitForReply(timeout);
 
-  if (replyContext) {
-    *replyContext = ctx.getReplyStatsContext();
+  if (rpcContext) {
+    *rpcContext = ctx.getRpcStatsContext();
   }
 
   // Schedule next writer loop, in case we didn't before
@@ -62,32 +62,12 @@ template <class Reply>
 void AsyncMcClientImpl::replyReady(
     Reply&& r,
     uint64_t reqId,
-    ReplyStatsContext replyStatsContext) {
-  assert(connectionState_ == ConnectionState::UP);
+    RpcStatsContext rpcStatsContext) {
+  assert(connectionState_ == ConnectionState::Up);
   DestructorGuard dg(this);
 
-  queue_.reply(reqId, std::move(r), replyStatsContext);
+  queue_.reply(reqId, std::move(r), rpcStatsContext);
 }
 
-template <class Request>
-double AsyncMcClientImpl::getDropProbability() const {
-  return 0.0;
-}
-
-template <>
-inline double AsyncMcClientImpl::getDropProbability<McSetRequest>() const {
-  return parser_ ? parser_->getDropProbability() : 0.0;
-}
-
-template <>
-inline double AsyncMcClientImpl::getDropProbability<McGetRequest>() const {
-  return parser_ ? parser_->getDropProbability() : 0.0;
-}
-
-template <>
-inline double AsyncMcClientImpl::getDropProbability<McDeleteRequest>() const {
-  return parser_ ? parser_->getDropProbability() : 0.0;
-}
-
-} // memcache
-} // facebook
+} // namespace memcache
+} // namespace facebook

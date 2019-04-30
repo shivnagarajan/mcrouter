@@ -1,9 +1,8 @@
-/*
- *  Copyright (c) 2014-present, Facebook, Inc.
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #include <memory>
 #include <vector>
@@ -11,7 +10,7 @@
 #include <gtest/gtest.h>
 
 #include "mcrouter/lib/FailoverErrorsSettings.h"
-#include "mcrouter/lib/network/gen/Memcache.h"
+#include "mcrouter/lib/network/gen/MemcacheMessages.h"
 #include "mcrouter/routes/FailoverRateLimiter.h"
 #include "mcrouter/routes/FailoverWithExptimeRouteFactory.h"
 #include "mcrouter/routes/McrouterRouteHandle.h"
@@ -31,18 +30,18 @@ namespace {
 using FiberManagerContextTag =
     typename fiber_local<MemcacheRouterInfo>::ContextTypeTag;
 } // anonymous
-}
-}
-} // facebook::memcache::mcrouter
+} // namespace mcrouter
+} // namespace memcache
+} // namespace facebook
 
 TEST(failoverWithExptimeRouteTest, success) {
   std::vector<std::shared_ptr<TestHandle>> normalHandle{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "a")),
   };
   auto normalRh = get_route_handles(normalHandle);
   std::vector<std::shared_ptr<TestHandle>> failoverHandles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "c"))};
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "c"))};
 
   auto rh = createFailoverWithExptimeRoute<McrouterRouterInfo>(
       normalRh[0],
@@ -63,20 +62,20 @@ TEST(failoverWithExptimeRouteTest, success) {
 TEST(failoverWithExptimeRouteTest, once) {
   std::vector<std::shared_ptr<TestHandle>> normalHandle{
       make_shared<TestHandle>(
-          GetRouteTestData(mc_res_timeout, "a"),
+          GetRouteTestData(carbon::Result::TIMEOUT, "a"),
           UpdateRouteTestData(),
-          DeleteRouteTestData(mc_res_timeout)),
+          DeleteRouteTestData(carbon::Result::TIMEOUT)),
   };
   auto normalRh = get_route_handles(normalHandle);
   std::vector<std::shared_ptr<TestHandle>> failoverHandles{
       make_shared<TestHandle>(
-          GetRouteTestData(mc_res_found, "b"),
+          GetRouteTestData(carbon::Result::FOUND, "b"),
           UpdateRouteTestData(),
-          DeleteRouteTestData(mc_res_notfound)),
+          DeleteRouteTestData(carbon::Result::NOTFOUND)),
       make_shared<TestHandle>(
-          GetRouteTestData(mc_res_found, "c"),
+          GetRouteTestData(carbon::Result::FOUND, "c"),
           UpdateRouteTestData(),
-          DeleteRouteTestData(mc_res_notfound))};
+          DeleteRouteTestData(carbon::Result::NOTFOUND))};
 
   auto rh = createFailoverWithExptimeRoute<McrouterRouterInfo>(
       normalRh[0],
@@ -92,7 +91,7 @@ TEST(failoverWithExptimeRouteTest, once) {
     EXPECT_EQ("b", carbon::valueRangeSlow(reply).str());
 
     auto reply2 = rh->route(McDeleteRequest("1"));
-    EXPECT_EQ(mc_res_notfound, reply2.result());
+    EXPECT_EQ(carbon::Result::NOTFOUND, reply2.result());
     EXPECT_EQ(vector<uint32_t>({0, 0}), normalHandle[0]->sawExptimes);
     EXPECT_EQ(vector<uint32_t>({0, 0}), failoverHandles[0]->sawExptimes);
     EXPECT_EQ(vector<uint32_t>{}, failoverHandles[1]->sawExptimes);
@@ -102,20 +101,20 @@ TEST(failoverWithExptimeRouteTest, once) {
 TEST(failoverWithExptimeRouteTest, twice) {
   std::vector<std::shared_ptr<TestHandle>> normalHandle{
       make_shared<TestHandle>(
-          GetRouteTestData(mc_res_timeout, "a"),
+          GetRouteTestData(carbon::Result::TIMEOUT, "a"),
           UpdateRouteTestData(),
-          DeleteRouteTestData(mc_res_timeout)),
+          DeleteRouteTestData(carbon::Result::TIMEOUT)),
   };
   auto normalRh = get_route_handles(normalHandle);
   std::vector<std::shared_ptr<TestHandle>> failoverHandles{
       make_shared<TestHandle>(
-          GetRouteTestData(mc_res_timeout, "b"),
+          GetRouteTestData(carbon::Result::TIMEOUT, "b"),
           UpdateRouteTestData(),
-          DeleteRouteTestData(mc_res_timeout)),
+          DeleteRouteTestData(carbon::Result::TIMEOUT)),
       make_shared<TestHandle>(
-          GetRouteTestData(mc_res_found, "c"),
+          GetRouteTestData(carbon::Result::FOUND, "c"),
           UpdateRouteTestData(),
-          DeleteRouteTestData(mc_res_notfound))};
+          DeleteRouteTestData(carbon::Result::NOTFOUND))};
 
   auto rh = createFailoverWithExptimeRoute<McrouterRouterInfo>(
       normalRh[0],
@@ -131,7 +130,7 @@ TEST(failoverWithExptimeRouteTest, twice) {
     EXPECT_EQ("c", carbon::valueRangeSlow(reply).str());
 
     auto reply2 = rh->route(McDeleteRequest("1"));
-    EXPECT_EQ(mc_res_notfound, reply2.result());
+    EXPECT_EQ(carbon::Result::NOTFOUND, reply2.result());
     EXPECT_EQ(vector<uint32_t>({0, 0}), normalHandle[0]->sawExptimes);
     EXPECT_EQ(vector<uint32_t>({0, 0}), failoverHandles[0]->sawExptimes);
     EXPECT_EQ(vector<uint32_t>({0, 0}), failoverHandles[1]->sawExptimes);
@@ -141,20 +140,20 @@ TEST(failoverWithExptimeRouteTest, twice) {
 TEST(failoverWithExptimeRouteTest, fail) {
   std::vector<std::shared_ptr<TestHandle>> normalHandle{
       make_shared<TestHandle>(
-          GetRouteTestData(mc_res_timeout, "a"),
+          GetRouteTestData(carbon::Result::TIMEOUT, "a"),
           UpdateRouteTestData(),
-          DeleteRouteTestData(mc_res_timeout)),
+          DeleteRouteTestData(carbon::Result::TIMEOUT)),
   };
   auto normalRh = get_route_handles(normalHandle);
   std::vector<std::shared_ptr<TestHandle>> failoverHandles{
       make_shared<TestHandle>(
-          GetRouteTestData(mc_res_timeout, "b"),
+          GetRouteTestData(carbon::Result::TIMEOUT, "b"),
           UpdateRouteTestData(),
-          DeleteRouteTestData(mc_res_timeout)),
+          DeleteRouteTestData(carbon::Result::TIMEOUT)),
       make_shared<TestHandle>(
-          GetRouteTestData(mc_res_timeout, "c"),
+          GetRouteTestData(carbon::Result::TIMEOUT, "c"),
           UpdateRouteTestData(),
-          DeleteRouteTestData(mc_res_timeout))};
+          DeleteRouteTestData(carbon::Result::TIMEOUT))};
 
   auto rh = createFailoverWithExptimeRoute<McrouterRouterInfo>(
       normalRh[0],
@@ -172,21 +171,21 @@ TEST(failoverWithExptimeRouteTest, fail) {
     EXPECT_EQ("c", carbon::valueRangeSlow(reply).str());
 
     auto reply2 = rh->route(McDeleteRequest("1"));
-    EXPECT_EQ(mc_res_timeout, reply2.result());
+    EXPECT_EQ(carbon::Result::TIMEOUT, reply2.result());
     EXPECT_EQ(vector<uint32_t>({0, 0}), normalHandle[0]->sawExptimes);
     EXPECT_EQ(vector<uint32_t>({0, 0}), failoverHandles[0]->sawExptimes);
     EXPECT_EQ(vector<uint32_t>({0, 0}), failoverHandles[1]->sawExptimes);
   });
 }
 
-void testFailoverGet(mc_res_t res) {
+void testFailoverGet(carbon::Result res) {
   std::vector<std::shared_ptr<TestHandle>> normalHandle{
       make_shared<TestHandle>(GetRouteTestData(res, "a")),
   };
   auto normalRh = get_route_handles(normalHandle);
   std::vector<std::shared_ptr<TestHandle>> failoverHandles{
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "b")),
-      make_shared<TestHandle>(GetRouteTestData(mc_res_found, "c"))};
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "c"))};
 
   auto rhNoFail = createFailoverWithExptimeRoute<McrouterRouterInfo>(
       normalRh[0],
@@ -217,14 +216,14 @@ void testFailoverGet(mc_res_t res) {
   });
 }
 
-void testFailoverUpdate(mc_res_t res) {
+void testFailoverUpdate(carbon::Result res) {
   std::vector<std::shared_ptr<TestHandle>> normalHandle{
       make_shared<TestHandle>(UpdateRouteTestData(res)),
   };
   auto normalRh = get_route_handles(normalHandle);
   std::vector<std::shared_ptr<TestHandle>> failoverHandles{
-      make_shared<TestHandle>(UpdateRouteTestData(mc_res_stored)),
-      make_shared<TestHandle>(UpdateRouteTestData(mc_res_stored))};
+      make_shared<TestHandle>(UpdateRouteTestData(carbon::Result::STORED)),
+      make_shared<TestHandle>(UpdateRouteTestData(carbon::Result::STORED))};
 
   auto rhNoFail = createFailoverWithExptimeRoute<McrouterRouterInfo>(
       normalRh[0],
@@ -260,20 +259,20 @@ void testFailoverUpdate(mc_res_t res) {
     req.value() = folly::IOBuf(folly::IOBuf::COPY_BUFFER, "a");
     auto reply = rhFail->route(std::move(req));
 
-    EXPECT_EQ(mc_res_stored, reply.result());
+    EXPECT_EQ(carbon::Result::STORED, reply.result());
     EXPECT_EQ(1, failoverHandles[0]->saw_keys.size());
     EXPECT_EQ(0, failoverHandles[1]->saw_keys.size());
   });
 }
 
-void testFailoverDelete(mc_res_t res) {
+void testFailoverDelete(carbon::Result res) {
   std::vector<std::shared_ptr<TestHandle>> normalHandle{
       make_shared<TestHandle>(DeleteRouteTestData(res)),
   };
   auto normalRh = get_route_handles(normalHandle);
   std::vector<std::shared_ptr<TestHandle>> failoverHandles{
-      make_shared<TestHandle>(DeleteRouteTestData(mc_res_deleted)),
-      make_shared<TestHandle>(DeleteRouteTestData(mc_res_deleted))};
+      make_shared<TestHandle>(DeleteRouteTestData(carbon::Result::DELETED)),
+      make_shared<TestHandle>(DeleteRouteTestData(carbon::Result::DELETED))};
 
   auto rhNoFail = createFailoverWithExptimeRoute<McrouterRouterInfo>(
       normalRh[0],
@@ -310,31 +309,32 @@ void testFailoverDelete(mc_res_t res) {
 }
 
 TEST(failoverWithExptimeRouteTest, noFailoverOnConnectTimeout) {
-  testFailoverGet(mc_res_connect_timeout);
-  testFailoverUpdate(mc_res_connect_timeout);
-  testFailoverDelete(mc_res_connect_timeout);
+  testFailoverGet(carbon::Result::CONNECT_TIMEOUT);
+  testFailoverUpdate(carbon::Result::CONNECT_TIMEOUT);
+  testFailoverDelete(carbon::Result::CONNECT_TIMEOUT);
 }
 
 TEST(failoverWithExptimeRouteTest, noFailoverOnDataTimeout) {
-  testFailoverGet(mc_res_timeout);
-  testFailoverUpdate(mc_res_timeout);
-  testFailoverDelete(mc_res_timeout);
+  testFailoverGet(carbon::Result::TIMEOUT);
+  testFailoverUpdate(carbon::Result::TIMEOUT);
+  testFailoverDelete(carbon::Result::TIMEOUT);
 }
 
 TEST(failoverWithExptimeRouteTest, noFailoverOnTko) {
-  testFailoverGet(mc_res_tko);
-  testFailoverUpdate(mc_res_tko);
-  testFailoverDelete(mc_res_tko);
+  testFailoverGet(carbon::Result::TKO);
+  testFailoverUpdate(carbon::Result::TKO);
+  testFailoverDelete(carbon::Result::TKO);
 }
 
 TEST(failoverWithExptimeRouteTest, noFailoverOnArithmetic) {
   std::vector<std::shared_ptr<TestHandle>> normalHandle{
-      make_shared<TestHandle>(UpdateRouteTestData(mc_res_connect_timeout)),
+      make_shared<TestHandle>(
+          UpdateRouteTestData(carbon::Result::CONNECT_TIMEOUT)),
   };
   auto normalRh = get_route_handles(normalHandle);
   std::vector<std::shared_ptr<TestHandle>> failoverHandles{
-      make_shared<TestHandle>(UpdateRouteTestData(mc_res_stored)),
-      make_shared<TestHandle>(UpdateRouteTestData(mc_res_stored))};
+      make_shared<TestHandle>(UpdateRouteTestData(carbon::Result::STORED)),
+      make_shared<TestHandle>(UpdateRouteTestData(carbon::Result::STORED))};
 
   auto rh = createFailoverWithExptimeRoute<McrouterRouterInfo>(
       normalRh[0],

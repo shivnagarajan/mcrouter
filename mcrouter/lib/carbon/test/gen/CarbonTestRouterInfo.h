@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include <chrono>
 #include <functional>
 #include <unordered_map>
 
@@ -27,6 +28,7 @@
 // Forward declarations
 namespace folly {
 struct dynamic;
+class VirtualEventBase;
 } // namespace folly
 
 namespace facebook {
@@ -61,7 +63,7 @@ struct CarbonTestRouterInfo {
   template <class Route>
   using RouteHandle = CarbonTestRouteHandle<Route>;
   using RoutableRequests = detail::CarbonTestRoutableRequests;
-
+  
   using RouterStats = carbon::Stats<CarbonTestRouterStatsConfig>;
 
   using RouteHandleFactoryMap = std::unordered_map<
