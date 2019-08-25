@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -77,6 +77,11 @@ struct SecurityOptions {
    * Whether TFO is enabled for SSL connections
    */
   bool tfoEnabledForSsl{false};
+
+  /**
+   * Client side to prefer AES-OCB cipher suite if supported.
+   */
+  bool tlsPreferOcbCipher{false};
 };
 
 } // namespace memcache

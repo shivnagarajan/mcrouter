@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -13,6 +13,12 @@
 #include "mcrouter/lib/network/CarbonMessageDispatcher.h"
 #include "mcrouter/lib/network/CaretHeader.h"
 #include "mcrouter/lib/network/FBTrace.h"
+
+namespace facebook {
+namespace memcache {
+void markContextAsTraced(McServerRequestContext& ctx);
+} // namespace memcache
+} // namespace facebook
 
 namespace carbon {
 
@@ -63,8 +69,8 @@ class CarbonRequestHandler : public facebook::memcache::CarbonMessageDispatcher<
       const folly::IOBuf* reqBuf,
       std::true_type) {
     if (UNLIKELY(
-            facebook::memcache::getFbTraceInfo(req) != nullptr &&
-            facebook::memcache::traceCheckRateLimit())) {
+            facebook::mcrouter::getFbTraceInfo(req) != nullptr &&
+            facebook::mcrouter::traceCheckRateLimit())) {
       onRequestImplWithTracingEnabled(
           std::move(ctx), std::move(req), headerInfo, reqBuf);
       return;
@@ -95,9 +101,16 @@ class CarbonRequestHandler : public facebook::memcache::CarbonMessageDispatcher<
       Request&& req,
       const facebook::memcache::CaretMessageInfo* headerInfo,
       const folly::IOBuf* reqBuf) {
+#ifndef LIBMC_FBTRACE_DISABLE
     folly::RequestContextScopeGuard requestContextGuard;
-    const auto commId =
-        facebook::memcache::traceRequestReceived(std::cref(req).get());
+    auto tracingData =
+        facebook::mcrouter::traceRequestReceived(std::cref(req).get());
+    if (tracingData != nullptr) {
+      // Mark the context as being traced by Artillery
+      markContextAsTraced(ctx);
+      tracingData->startCounters();
+    }
+#endif
     callOnRequest(
         std::move(ctx),
         std::move(req),
@@ -105,7 +118,6 @@ class CarbonRequestHandler : public facebook::memcache::CarbonMessageDispatcher<
         reqBuf,
         carbon::detail::CanHandleRequestWithBuffer::
             value<Request, OnRequest>());
-    facebook::memcache::traceRequestHandlerCompleted(commId);
   }
 
   template <class Request>

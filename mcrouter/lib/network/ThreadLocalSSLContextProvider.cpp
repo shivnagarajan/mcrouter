@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -35,6 +35,8 @@ namespace memcache {
 namespace {
 /* Sessions are valid for upto 24 hours */
 constexpr size_t kSessionLifeTime = 86400;
+/* Handshakes are valid for 1 week */
+constexpr size_t kHandshakeValidity = 604800;
 
 struct ContextKey {
   folly::StringPiece pemCertPath;
@@ -243,6 +245,7 @@ std::shared_ptr<SSLContext> createServerSSLContext(
   // we'll use our own internal session cache instead of openssl's
   wangle::SSLCacheOptions cacheOpts;
   cacheOpts.sslCacheTimeout = std::chrono::seconds(kSessionLifeTime);
+  cacheOpts.handshakeValidity = std::chrono::seconds(kHandshakeValidity);
   // defaults from wangle/acceptor/ServerSocketConfig.h
   cacheOpts.maxSSLCacheSize = 20480;
   cacheOpts.sslCacheFlushSize = 200;
@@ -411,18 +414,6 @@ bool isAsyncSSLSocketMech(SecurityMech mech) {
       mech == SecurityMech::KTLS12;
 }
 
-bool sslContextsAreThreadSafe() {
-  static folly::once_flag flag;
-  static bool ctxLockDisabled = false;
-  folly::call_once(flag, [&] {
-    folly::ssl::init();
-#ifdef CRYPTO_LOCK_SSL_CTX
-    ctxLockDisabled = folly::ssl::isLockDisabled(CRYPTO_LOCK_SSL_CTX);
-#endif
-  });
-  return !ctxLockDisabled;
-}
-
 FizzContextAndVerifier getFizzClientConfig(const SecurityOptions& opts) {
   auto& info = getClientContextInfo(opts, SecurityMech::TLS13_FIZZ);
   auto now = std::chrono::steady_clock::now();
@@ -430,7 +421,10 @@ FizzContextAndVerifier getFizzClientConfig(const SecurityOptions& opts) {
     auto certData = readFile(opts.sslPemCertPath);
     auto keyData = readFile(opts.sslPemKeyPath);
     auto fizzData = createClientFizzContextAndVerifier(
-        std::move(certData), std::move(keyData), opts.sslPemCaPath);
+        std::move(certData),
+        std::move(keyData),
+        opts.sslPemCaPath,
+        opts.tlsPreferOcbCipher);
     info.setFizzData(std::move(fizzData), now);
   }
   return info.fizzData;
@@ -461,7 +455,8 @@ ServerContextPair getServerContexts(
     folly::StringPiece pemKeyPath,
     folly::StringPiece pemCaPath,
     bool requireClientCerts,
-    folly::Optional<wangle::TLSTicketKeySeeds> seeds) {
+    folly::Optional<wangle::TLSTicketKeySeeds> seeds,
+    bool preferOcbCipher) {
   auto& info = getServerContextInfo(
       pemCertPath, pemKeyPath, pemCaPath, requireClientCerts);
   auto now = std::chrono::steady_clock::now();
@@ -483,6 +478,7 @@ ServerContextPair getServerContexts(
         keyData,
         pemCaPath,
         requireClientCerts,
+        preferOcbCipher,
         seeds.get_pointer());
     info.setContexts(std::move(ctx), std::move(fizzCtx), now);
   }

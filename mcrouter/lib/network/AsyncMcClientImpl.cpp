@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -368,9 +368,7 @@ void AsyncMcClientImpl::attemptConnection() {
     const auto mech = connectionOptions_.accessPoint->getSecurityMech();
     auto socketOptions = createSocketOptions(address, connectionOptions_);
     if ((isAsyncSSLSocketMech(mech)) &&
-        connectionOptions_.securityOpts.sslHandshakeOffload &&
-        // we must make sure that contexts are threadsafe before doing this!
-        sslContextsAreThreadSafe()) {
+        connectionOptions_.securityOpts.sslHandshakeOffload) {
       // we keep ourself alive during connection.
       auto self = selfPtr_.lock();
       auto sslSocket = socket_->getUnderlyingTransport<folly::AsyncSSLSocket>();
@@ -436,7 +434,6 @@ void AsyncMcClientImpl::connectSuccess() noexcept {
   if (isAsyncSSLSocketMech(mech)) {
     auto* sslSocket = socket_->getUnderlyingTransport<folly::AsyncSSLSocket>();
     assert(sslSocket != nullptr);
-    McSSLUtil::finalizeClientSSL(sslSocket);
     if (mech == SecurityMech::TLS_TO_PLAINTEXT) {
       // if we negotiated the right alpn, then server also supports this and we
       // can fall back to plaintext.
@@ -469,6 +466,7 @@ void AsyncMcClientImpl::connectSuccess() noexcept {
       }
     }
   }
+  McSSLUtil::finalizeClientTransport(socket_.get());
 
   assert(queue_.getInflightRequestCount() == 0);
   assert(queue_.getParserInitializer() == nullptr);

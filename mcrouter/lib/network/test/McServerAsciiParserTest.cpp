@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -527,6 +527,15 @@ TEST(McServerAsciiParserHarness, version) {
       .expectNext(McVersionRequest())
       .run("version\r\n")
       .run("version    \r\n");
+}
+
+TEST(McServerAsciiParserHarness, quitWithVersion) {
+  TestRunner()
+      .expectNext(McQuitRequest(), true)
+      .expectNext(McVersionRequest())
+      .run(
+          "quit\r\n"
+          "version\r\n");
 }
 
 TEST(McServerAsciiParserHarness, shutdown) {

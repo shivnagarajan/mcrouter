@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -24,7 +24,10 @@ TEST(RouteHandleFactoryTest, sanity) {
 
   auto router = getTestRouter();
   auto proxy = router->getProxy(0);
-  PoolFactory pf(folly::dynamic::object(), router->configApi());
+  PoolFactory pf(
+      folly::dynamic::object(),
+      router->configApi(),
+      folly::json::metadata_map{});
   McRouteHandleProvider<MemcacheRouterInfo> provider(*proxy, pf);
   RouteHandleFactory<MemcacheRouteHandleIf> factory(provider, proxy->getId());
 

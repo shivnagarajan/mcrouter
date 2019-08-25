@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -29,6 +29,11 @@ class TlsToPlainTransport : public folly::AsyncSocket {
 
   SecurityTransportStats getStats() const {
     return stats_;
+  }
+
+  void setAddresses(folly::SocketAddress local, folly::SocketAddress peer) {
+    localAddr_ = std::move(local);
+    addr_ = std::move(peer);
   }
 
  private:

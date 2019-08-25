@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -61,12 +61,12 @@ class SelectionRoute {
   bool traverse(
       const Request& req,
       const RouteHandleTraverser<RouteHandleIf>& t) const {
-    return t(*select(req), req);
+    return t(select(req), req);
   }
 
   template <class Request>
   ReplyT<Request> route(const Request& req) const {
-    return select(req)->route(req);
+    return select(req).route(req);
   }
 
  private:
@@ -75,14 +75,14 @@ class SelectionRoute {
   const RouteHandlePtr outOfRangeDestination_;
 
   template <class Request>
-  RouteHandlePtr select(const Request& req) const {
+  RouteHandleIf& select(const Request& req) const {
     size_t idx = selector_.select(req, children_.size());
     if (idx >= children_.size()) {
-      return outOfRangeDestination_;
+      return *outOfRangeDestination_;
     }
-    return children_[idx];
+    return *children_[idx];
   }
 };
 
-} // memcache
-} // facebook
+} // namespace memcache
+} // namespace facebook

@@ -1,9 +1,8 @@
 /*
- *  Copyright (c) Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #pragma once
 
@@ -90,12 +89,14 @@ McClientRequestContext<Request>::waitForReply(
     case ReqState::PENDING_QUEUE:
       // Request wasn't sent to the network yet, reply with timeout.
       queue_.removePending(*this);
-      return Reply(carbon::Result::TIMEOUT);
+      return createReply<Request>(
+          ErrorReply, carbon::Result::TIMEOUT, "Client queue timeout");
     case ReqState::PENDING_REPLY_QUEUE:
       // Request was sent to the network, but wasn't replied yet,
       // reply with timeout.
       queue_.removePendingReply(*this);
-      return Reply(carbon::Result::TIMEOUT);
+      return createReply<Request>(
+          ErrorReply, carbon::Result::TIMEOUT, "Reply timeout");
     case ReqState::COMPLETE:
       assert(replyStorage_.hasValue());
       return std::move(replyStorage_.value());
@@ -133,7 +134,7 @@ McClientRequestContext<Request>::McClientRequestContext(
       requestTraceContext_(request.traceContext())
 #ifndef LIBMC_FBTRACE_DISABLE
       ,
-      fbtraceInfo_(getFbTraceInfo(request))
+      fbtraceInfo_(facebook::mcrouter::getFbTraceInfo(request))
 #endif
 {
 }
@@ -141,7 +142,8 @@ McClientRequestContext<Request>::McClientRequestContext(
 template <class Request>
 void McClientRequestContext<Request>::sendTraceOnReply() {
 #ifndef LIBMC_FBTRACE_DISABLE
-  fbTraceOnReceive(fbtraceInfo_, replyStorage_.value().result());
+  facebook::mcrouter::fbTraceOnReceive(
+      fbtraceInfo_, replyStorage_.value().result());
 #endif
 }
 

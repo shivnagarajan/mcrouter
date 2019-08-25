@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -11,6 +11,7 @@
 
 #include <folly/Optional.h>
 #include <folly/io/IOBuf.h>
+#include <folly/io/async/EventBase.h>
 
 #include "mcrouter/lib/Operation.h"
 #include "mcrouter/lib/carbon/RequestReplyUtil.h"
@@ -59,6 +60,12 @@ class McServerRequestContext {
 
   ServerLoad getServerLoad() const noexcept;
 
+  folly::Optional<struct sockaddr_storage> getPeerSocketAddress();
+
+  folly::EventBase& getSessionEventBase() const noexcept;
+
+  void markAsTraced();
+
  private:
   McServerSession* session_;
 
@@ -66,6 +73,7 @@ class McServerRequestContext {
   bool isEndContext_{false}; // Used to mark end of ASCII multi-get request
   bool noReply_;
   bool replied_{false};
+  bool isTraced_{false};
 
   uint64_t reqid_;
   struct AsciiState {
@@ -144,6 +152,8 @@ class McServerRequestContext {
       std::shared_ptr<MultiOpParent> parent = nullptr,
       bool isEndContext = false);
 };
+
+void markContextAsTraced(McServerRequestContext& ctx);
 
 static_assert(
     sizeof(McServerRequestContext) == 32,

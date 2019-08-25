@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -21,7 +21,6 @@
 #include "mcrouter/lib/fbi/cpp/util.h"
 #include "mcrouter/lib/network/AccessPoint.h"
 #include "mcrouter/lib/network/AsyncMcClient.h"
-#include "mcrouter/lib/network/NoOpTransport.h"
 #include "mcrouter/lib/network/SecurityOptions.h"
 #include "mcrouter/lib/network/ThriftTransport.h"
 #include "mcrouter/lib/network/gen/MemcacheRouterInfo.h"
@@ -163,8 +162,6 @@ McRouteHandleProvider<RouterInfo>::makePool(
         protocol = mc_caret_protocol;
       } else if (equalStr("thrift", str, folly::AsciiCaseInsensitive())) {
         protocol = mc_thrift_protocol;
-      } else if (equalStr("noop", str, folly::AsciiCaseInsensitive())) {
-        protocol = mc_noop_protocol;
       } else {
         throwLogic("Unknown protocol '{}'", str);
       }
@@ -306,19 +303,11 @@ McRouteHandleProvider<RouterInfo>::makePool(
       folly::StringPiece nameSp = it->first;
 
       if (ap->getProtocol() == mc_thrift_protocol) {
+        checkLogic(
+            ap->getSecurityMech() == SecurityMech::NONE,
+            "mcrouter ThriftTransport currently only supports plaintext");
+
         using Transport = ThriftTransport<RouterInfo>;
-        destinations.push_back(createDestinationRoute<Transport>(
-            std::move(ap),
-            timeout,
-            connectTimeout,
-            qosClass,
-            qosPath,
-            nameSp,
-            i,
-            poolStatIndex,
-            keepRoutingPrefix));
-      } else if (ap->getProtocol() == mc_noop_protocol) {
-        using Transport = NoOpTransport;
         destinations.push_back(createDestinationRoute<Transport>(
             std::move(ap),
             timeout,
@@ -528,7 +517,17 @@ McRouteHandleProvider<RouterInfo>::create(
     return ret;
   }
 
-  throwLogic("Unknown RouteHandle: {}", type);
+  const auto& configMetadataMap = poolFactory_.getConfigMetadataMap();
+  auto jType = json.get_ptr("type");
+  auto typeMetadata = configMetadataMap.find(jType);
+  if (typeMetadata != configMetadataMap.end()) {
+    // The line numbers returned by the folly API are 0-based. Make them
+    // 1-based.
+    auto line = typeMetadata->second.value_range.begin.line + 1;
+    throwLogic("Unknown RouteHandle: {} line: {}", type, line);
+  } else {
+    throwLogic("Unknown RouteHandle: {}", type);
+  }
 }
 
 template <class RouterInfo>

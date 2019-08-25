@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -340,7 +340,7 @@ Proxy<RouterInfo>* CarbonRouterInstance<RouterInfo>::getProxy(
 }
 
 template <class RouterInfo>
-const std::vector<Proxy<RouterInfo>*>
+const std::vector<Proxy<RouterInfo>*>&
 CarbonRouterInstance<RouterInfo>::getProxies() const {
   return proxies_;
 }

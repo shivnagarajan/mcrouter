@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -157,11 +157,13 @@ TestServer::TestServer(Config config)
       std::chrono::milliseconds{config.goAwayTimeoutMs};
   opts_.setMaxConnections(config.maxConns, opts_.numThreads);
   opts_.worker.tcpZeroCopyThresholdBytes = config.tcpZeroCopyThresholdBytes;
+  opts_.worker.tosReflection = config.tosReflection;
   if (config.useSsl) {
     opts_.pemKeyPath = config.keyPath;
     opts_.pemCertPath = config.certPath;
     opts_.pemCaPath = config.caPath;
     opts_.sslRequirePeerCerts = config.requirePeerCerts;
+    opts_.tlsPreferOcbCipher = config.tlsPreferOcbCipher;
     if (config.tfoEnabled) {
       opts_.tfoEnabledForSsl = true;
       opts_.tfoQueueSize = 100000;
@@ -257,6 +259,7 @@ TestClient::TestClient(
     opts.securityOpts.sslServiceIdentity = serviceIdentity;
     opts.securityOpts.tfoEnabledForSsl = enableTfo;
     opts.securityOpts.sslHandshakeOffload = offloadHandshakes;
+    opts.securityOpts.tlsPreferOcbCipher = ssl->useOcbCipher;
   }
   if (qosClass != 0 || qosPath != 0) {
     opts.enableQoS = true;

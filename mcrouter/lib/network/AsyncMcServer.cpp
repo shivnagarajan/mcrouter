@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -25,6 +25,7 @@
 #include <folly/String.h>
 #include <folly/io/async/AsyncServerSocket.h>
 #include <folly/io/async/EventBase.h>
+#include <folly/io/async/EventFDWrapper.h>
 #include <folly/io/async/SSLContext.h>
 #include <folly/io/async/ScopedEventBaseThread.h>
 #include <wangle/ssl/TLSCredProcessor.h>
@@ -290,7 +291,8 @@ class McServerThread {
             opts.pemKeyPath,
             opts.pemCaPath,
             opts.sslRequirePeerCerts,
-            server.getTicketKeySeeds());
+            server.getTicketKeySeeds(),
+            opts.tlsPreferOcbCipher);
 
         if (contextPair.first) {
           mcServerThread_->worker_.addSecureClientSocket(
@@ -416,6 +418,7 @@ class McServerThread {
           bool zeroCopyApplied = socket_->setZeroCopy(true);
           checkLogic(zeroCopyApplied, "Failed to set TCP zero copy on socket");
         }
+        socket_->setTosReflect(server_.opts_.worker.tosReflection);
       }
       if (!server_.opts_.sslPorts.empty()) {
         checkLogic(
@@ -435,6 +438,7 @@ class McServerThread {
           checkLogic(
               zeroCopyApplied, "Failed to set TCP zero copy on ssl socket");
         }
+        sslSocket_->setTosReflect(server_.opts_.worker.tosReflection);
       }
     }
 

@@ -1,9 +1,8 @@
 /*
- *  Copyright (c) 2014-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #include "util.h"
 
@@ -160,12 +159,16 @@ std::string getThreadName() {
   return "unknown";
 }
 
+// TODO make this return a class containing folly::dynamic and
+// folly::json::metadata_map as suggested by Andre in the comments of
+// D15286671
 folly::dynamic parseJsonString(
     folly::StringPiece s,
+    folly::json::metadata_map* metadataMap,
     bool allow_trailing_comma) {
   folly::json::serialization_opts opts;
   opts.allow_trailing_comma = allow_trailing_comma;
-  return folly::parseJson(s, opts);
+  return folly::parseJsonWithMetadata(s, opts, metadataMap);
 }
 
 std::string shorten(folly::StringPiece s, size_t maxLength) {

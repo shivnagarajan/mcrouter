@@ -1,8 +1,8 @@
 /*
- *  Copyright (c) 2014-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #pragma once
 
@@ -15,10 +15,9 @@
 #include <thread>
 
 #include <folly/Range.h>
+#include <folly/SharedMutex.h>
 #include <folly/fibers/FiberManager.h>
 #include <folly/io/async/EventBase.h>
-
-#include "mcrouter/lib/fbi/cpp/sfrlock.h"
 
 namespace facebook {
 namespace memcache {
@@ -85,7 +84,7 @@ class AsyncWriter {
   size_t maxQueueSize_;
   std::atomic<size_t> queueSize_{0};
   std::atomic<bool> stopped_{false};
-  SFRLock runLock_;
+  folly::SharedMutex runLock_;
 
   folly::fibers::FiberManager fiberManager_;
   folly::EventBase eventBase_;

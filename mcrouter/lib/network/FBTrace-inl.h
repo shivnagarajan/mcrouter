@@ -1,9 +1,8 @@
 /*
- *  Copyright (c) 2014-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #ifndef LIBMC_FBTRACE_DISABLE
 #include <folly/fibers/FiberManager.h>
@@ -17,16 +16,12 @@
 #include "mcrouter/lib/carbon/RequestCommon.h"
 
 namespace facebook {
-namespace memcache {
-
-// An opaque identifier. Pass it around after starting tracing with
-// traceRequestReceived().
-using CommIdType = std::string;
+namespace mcrouter {
 
 #ifdef LIBMC_FBTRACE_DISABLE
 
 template <class Request>
-bool fbTraceOnSend(const Request& request, const AccessPoint& ap) {
+bool fbTraceOnSend(const Request& request, const memcache::AccessPoint& ap) {
   // Do nothing for non-mc operations.
   return false;
 }
@@ -50,13 +45,9 @@ inline mc_fbtrace_info_s* getFbTraceInfo(const carbon::RequestCommon&) {
 }
 
 template <class Request>
-inline CommIdType traceRequestReceived(const Request& req) {
+inline nullptr_t traceRequestReceived(const Request& req) {
   // Do nothing by default.
-  return CommIdType();
-}
-
-inline void traceRequestHandlerCompleted(const CommIdType& commId) {
-  // Do nothing by default.
+  return nullptr;
 }
 
 #else
@@ -117,10 +108,10 @@ typename std::enable_if<!Request::hasKey, const char*>::type getRemoteService(
   return FBTRACE_OTHER;
 }
 
-} // anonymous
+} // namespace
 
 template <class Request>
-bool fbTraceOnSend(const Request& request, const AccessPoint& ap) {
+bool fbTraceOnSend(const Request& request, const memcache::AccessPoint& ap) {
   mc_fbtrace_info_s* fbtraceInfo = request.fbtraceInfo();
 
   if (fbtraceInfo == nullptr) {
@@ -188,22 +179,22 @@ inline const mc_fbtrace_info_s* getFbTraceInfo(
   return request.fbtraceInfo();
 }
 
+// Fwd declaration
+class TracingData;
+
 // Start tracing for a request.
 // NOTE: this function does not exist if LIBMC_FBTRACE_DISABLE is defined.
-CommIdType traceRequestReceived(
+std::shared_ptr<TracingData> traceRequestReceived(
     const mc_fbtrace_info_t& trace,
     folly::StringPiece requestType);
 
-// Call this when the handler for a request has completed.
-void traceRequestHandlerCompleted(const CommIdType& commId);
-
 template <class Request>
-inline CommIdType traceRequestReceived(const Request& req) {
+inline std::shared_ptr<TracingData> traceRequestReceived(const Request& req) {
   assert(getFbTraceInfo(req));
   return traceRequestReceived(*getFbTraceInfo(req), Request::name);
 }
 
 #endif
 
-} // namespace memcache
+} // namespace mcrouter
 } // namespace facebook

@@ -1,12 +1,15 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
  * file in the root directory of this source tree.
  */
+#include <cassert>
+
 #include "mcrouter/CarbonRouterInstance.h"
 #include "mcrouter/ForEachPossibleClient.h"
 #include "mcrouter/ProxyRequestContextTyped.h"
+#include "mcrouter/lib/RouteHandleTraverser.h"
 
 namespace facebook {
 namespace memcache {
@@ -87,37 +90,16 @@ bool CarbonRouterClient<RouterInfo>::send(
     const Request& req,
     F&& callback,
     folly::StringPiece ipAddr) {
-  auto makePreq = [this, ipAddr, &req, &callback] {
-    Proxy<RouterInfo>* pr = proxy_;
-    if (mode_ == ThreadMode::AffinitizedRemoteThread) {
-      pr = proxies_[findProxy(req)];
-    }
-    auto preq = createProxyRequestContext(
-        *pr,
-        req,
-        [this, cb = std::forward<F>(callback)](
-            const Request& request, ReplyT<Request>&& reply) mutable {
-          detail::bumpCarbonRouterClientStats(stats_, request, reply);
-          if (disconnected_) {
-            // "Cancelled" reply.
-            cb(request, ReplyT<Request>(carbon::Result::UNKNOWN));
-          } else {
-            cb(request, std::move(reply));
-          }
-        });
-
-    preq->setRequester(self_);
-    if (!ipAddr.empty()) {
-      preq->setUserIpAddress(ipAddr);
-    }
-    return preq;
+  auto makePreq = [this, ipAddr, &req, &callback](bool inBatch) mutable {
+    return makeProxyRequestContext(
+        req, std::forward<F>(callback), ipAddr, inBatch);
   };
 
   auto cancelRemaining = [&req, &callback]() {
     callback(req, ReplyT<Request>(carbon::Result::LOCAL_ERROR));
   };
 
-  return sendMultiImpl(1, makePreq, cancelRemaining);
+  return sendMultiImpl(1, std::move(makePreq), std::move(cancelRemaining));
 }
 
 template <class RouterInfo>
@@ -127,18 +109,37 @@ bool CarbonRouterClient<RouterInfo>::sendMultiImpl(
     F&& makeNextPreq,
     G&& failRemaining) {
   auto router = router_.lock();
-  if (!router) {
+  if (UNLIKELY(!router)) {
     return false;
   }
+
+  auto notify = [this]() {
+    assert(mode_ != ThreadMode::SameThread);
+    if (mode_ == ThreadMode::FixedRemoteThread) {
+      proxies_[proxyIdx_]->messageQueue_->notifyRelaxed();
+    } else {
+      assert(mode_ == ThreadMode::AffinitizedRemoteThread);
+      for (size_t i = 0; i < proxies_.size(); ++i) {
+        if (proxiesToNotify_[i]) {
+          proxies_[i]->messageQueue_->notifyRelaxed();
+          proxiesToNotify_[i] = false;
+        }
+      }
+    }
+  };
 
   if (maxOutstanding() == 0) {
     if (mode_ == ThreadMode::SameThread) {
       for (size_t i = 0; i < nreqs; ++i) {
-        sendSameThread(makeNextPreq());
+        sendSameThread(makeNextPreq(/* inBatch */ false));
       }
     } else {
+      bool delayNotification = shouldDelayNotification(nreqs);
       for (size_t i = 0; i < nreqs; ++i) {
-        sendRemoteThread(makeNextPreq());
+        sendRemoteThread(makeNextPreq(delayNotification), delayNotification);
+      }
+      if (delayNotification) {
+        notify();
       }
     }
   } else if (maxOutstandingError()) {
@@ -152,11 +153,15 @@ bool CarbonRouterClient<RouterInfo>::sendMultiImpl(
 
       if (mode_ == ThreadMode::SameThread) {
         for (size_t i = begin; i < end; i++) {
-          sendSameThread(makeNextPreq());
+          sendSameThread(makeNextPreq(/*  inBatch */ false));
         }
       } else {
+        bool delayNotification = shouldDelayNotification(end - begin);
         for (size_t i = begin; i < end; i++) {
-          sendRemoteThread(makeNextPreq());
+          sendRemoteThread(makeNextPreq(delayNotification), delayNotification);
+        }
+        if (delayNotification) {
+          notify();
         }
       }
 
@@ -170,8 +175,12 @@ bool CarbonRouterClient<RouterInfo>::sendMultiImpl(
 
     while (i < nreqs) {
       n += counting_sem_lazy_wait(outstandingReqsSem(), nreqs - n);
+      bool delayNotification = shouldDelayNotification(n);
       for (size_t j = i; j < n; ++j) {
-        sendRemoteThread(makeNextPreq());
+        sendRemoteThread(makeNextPreq(delayNotification), delayNotification);
+      }
+      if (delayNotification) {
+        notify();
       }
       i = n;
     }
@@ -185,18 +194,30 @@ template <class Request>
 typename std::enable_if<
     ListContains<typename RouterInfo::RoutableRequests, Request>::value,
     uint64_t>::type
-CarbonRouterClient<RouterInfo>::findProxy(const Request& req) {
+CarbonRouterClient<RouterInfo>::findAffinitizedProxyIdx(
+    const Request& req) const {
+  assert(mode_ == ThreadMode::AffinitizedRemoteThread);
+
+  // Create a traverser
   uint64_t hash = 0;
-  foreachPossibleClient<Request>(
-      *(proxies_[0]),
-      req,
-      [&hash](
-          const memcache::mcrouter::PoolContext&,
-          const memcache::AccessPoint& ap) { hash = ap.getHash(); },
-      /* spCallback */ nullptr,
-      /* includeFailoverDestinations */ true,
-      /* traverseEarlyExit */ true);
-  /* Hash on ipv6 address */
+  RouteHandleTraverser<typename RouterInfo::RouteHandleIf> t(
+      /* start */ nullptr,
+      /* end */ nullptr,
+      [&hash](const AccessPoint& ap, const PoolContext& poolContext) mutable {
+        if (!poolContext.isShadow) {
+          hash = ap.getHash();
+          // if it's not a shadow and got the hash, we should stop the traversal
+          return true;
+        }
+        return false;
+      });
+
+  // Traverse the routing tree.
+  {
+    auto config = proxies_[proxyIdx_]->getConfigLocked();
+    config.second.proxyRoute().traverse(req, t);
+  }
+
   return hash % proxies_.size();
 }
 
@@ -205,7 +226,9 @@ template <class Request>
 typename std::enable_if<
     !ListContains<typename RouterInfo::RoutableRequests, Request>::value,
     uint64_t>::type
-CarbonRouterClient<RouterInfo>::findProxy(const Request& /* unused */) {
+CarbonRouterClient<RouterInfo>::findAffinitizedProxyIdx(
+    const Request& /* unused */) const {
+  assert(mode_ == ThreadMode::AffinitizedRemoteThread);
   return 0;
 }
 
@@ -220,32 +243,11 @@ bool CarbonRouterClient<RouterInfo>::send(
   using Request = typename std::decay<decltype(
       detail::unwrapRequest(std::declval<IterReference>()))>::type;
 
-  auto makeNextPreq = [this, ipAddr, &callback, &begin]() {
-    Proxy<RouterInfo>* pr = proxy_;
-    if (mode_ == ThreadMode::AffinitizedRemoteThread) {
-      pr = proxies_[findProxy(detail::unwrapRequest(*begin))];
-    }
-    auto preq = createProxyRequestContext(
-        *pr,
-        detail::unwrapRequest(*begin),
-        [this, callback](
-            const Request& request, ReplyT<Request>&& reply) mutable {
-          detail::bumpCarbonRouterClientStats(stats_, request, reply);
-          if (disconnected_) {
-            // "Cancelled" reply.
-            callback(request, ReplyT<Request>(carbon::Result::UNKNOWN));
-          } else {
-            callback(request, std::move(reply));
-          }
-        });
-
-    preq->setRequester(self_);
-    if (!ipAddr.empty()) {
-      preq->setUserIpAddress(ipAddr);
-    }
-
+  auto makeNextPreq = [this, ipAddr, &callback, &begin](bool inBatch) {
+    auto proxyRequestContext = makeProxyRequestContext(
+        detail::unwrapRequest(*begin), callback, ipAddr, inBatch);
     ++begin;
-    return preq;
+    return proxyRequestContext;
   };
 
   auto cancelRemaining = [&begin, &end, &callback]() {
@@ -265,41 +267,45 @@ bool CarbonRouterClient<RouterInfo>::send(
 
 template <class RouterInfo>
 void CarbonRouterClient<RouterInfo>::sendRemoteThread(
-    std::unique_ptr<ProxyRequestContextWithInfo<RouterInfo>> req) {
+    std::unique_ptr<ProxyRequestContextWithInfo<RouterInfo>> req,
+    bool skipNotification) {
   // Use the proxy saved in the ProxyRequestContext, as it may change
-  // base on the ThreadMode
-  req->proxyWithRouterInfo().messageQueue_->blockingWriteRelaxed(
+  // base on the ThreadMode.
+  // Get a reference to the Proxy first as the unique pointer is released as
+  // part of the blockingWriteRelaxed call.
+  Proxy<RouterInfo>& pr = req->proxyWithRouterInfo();
+  pr.messageQueue_->blockingWriteNoNotify(
       ProxyMessage::Type::REQUEST, req.release());
+  if (!skipNotification) {
+    pr.messageQueue_->notifyRelaxed();
+  }
 }
 
 template <class RouterInfo>
 void CarbonRouterClient<RouterInfo>::sendSameThread(
     std::unique_ptr<ProxyRequestContextWithInfo<RouterInfo>> req) {
-  proxy_->messageReady(ProxyMessage::Type::REQUEST, req.release());
+  // We are guaranteed to be in the thread that owns proxies_[proxyIdx_]
+  proxies_[proxyIdx_]->messageReady(ProxyMessage::Type::REQUEST, req.release());
 }
 
 template <class RouterInfo>
 CarbonRouterClient<RouterInfo>::CarbonRouterClient(
-    std::weak_ptr<CarbonRouterInstance<RouterInfo>> rtr,
+    std::shared_ptr<CarbonRouterInstance<RouterInfo>> router,
     size_t maximumOutstanding,
     bool maximumOutstandingError,
     ThreadMode mode)
     : CarbonRouterClientBase(maximumOutstanding, maximumOutstandingError),
-      router_(std::move(rtr)),
-      mode_(mode) {
-  if (auto router = router_.lock()) {
-    if (mode_ == ThreadMode::AffinitizedRemoteThread) {
-      proxies_ = router->getProxies();
-    } else {
-      proxy_ = router->getProxy(router->nextProxyIndex());
-    }
-  }
+      router_(router),
+      mode_(mode),
+      proxies_(router->getProxies()),
+      proxiesToNotify_(proxies_.size(), false) {
+  proxyIdx_ = router->nextProxyIndex();
 }
 
 template <class RouterInfo>
 typename CarbonRouterClient<RouterInfo>::Pointer
 CarbonRouterClient<RouterInfo>::create(
-    std::weak_ptr<CarbonRouterInstance<RouterInfo>> router,
+    std::shared_ptr<CarbonRouterInstance<RouterInfo>> router,
     size_t maximumOutstanding,
     bool maximumOutstandingError,
     ThreadMode mode) {
@@ -312,6 +318,49 @@ CarbonRouterClient<RouterInfo>::create(
 template <class RouterInfo>
 CarbonRouterClient<RouterInfo>::~CarbonRouterClient() {
   assert(disconnected_);
+}
+
+template <class RouterInfo>
+bool CarbonRouterClient<RouterInfo>::shouldDelayNotification(
+    size_t batchSize) const {
+  return mode_ != ThreadMode::SameThread && batchSize > 1;
+}
+
+template <class RouterInfo>
+template <class Request, class CallbackFunc>
+std::unique_ptr<ProxyRequestContextWithInfo<RouterInfo>>
+CarbonRouterClient<RouterInfo>::makeProxyRequestContext(
+    const Request& req,
+    CallbackFunc&& callback,
+    folly::StringPiece ipAddr,
+    bool inBatch) {
+  Proxy<RouterInfo>* proxy = proxies_[proxyIdx_];
+  if (mode_ == ThreadMode::AffinitizedRemoteThread) {
+    size_t idx = findAffinitizedProxyIdx(req);
+    proxy = proxies_[idx];
+    if (inBatch) {
+      proxiesToNotify_[idx] = true;
+    }
+  }
+  auto proxyRequestContext = createProxyRequestContext(
+      *proxy,
+      req,
+      [this, cb = std::forward<CallbackFunc>(callback)](
+          const Request& request, ReplyT<Request>&& reply) mutable {
+        detail::bumpCarbonRouterClientStats(stats_, request, reply);
+        if (disconnected_) {
+          // "Cancelled" reply.
+          cb(request, ReplyT<Request>(carbon::Result::UNKNOWN));
+        } else {
+          cb(request, std::move(reply));
+        }
+      });
+
+  proxyRequestContext->setRequester(self_);
+  if (!ipAddr.empty()) {
+    proxyRequestContext->setUserIpAddress(ipAddr);
+  }
+  return proxyRequestContext;
 }
 
 } // namespace mcrouter

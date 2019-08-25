@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -9,12 +9,9 @@
 #include <chrono>
 
 #include <folly/Range.h>
+#include <folly/dynamic.h>
 
 #include "mcrouter/config.h"
-
-namespace folly {
-struct dynamic;
-} // namespace folly
 
 namespace facebook {
 namespace memcache {

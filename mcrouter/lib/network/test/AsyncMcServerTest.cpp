@@ -1,9 +1,8 @@
 /*
- *  Copyright (c) 2016-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #include <gtest/gtest.h>
 
@@ -44,6 +43,48 @@ TEST(AsyncMcServer, basic) {
 
   TestClient client(
       "localhost", server->getListenPort(), 200, mc_caret_protocol);
+  client.sendGet("empty", carbon::Result::FOUND);
+  client.waitForReplies();
+
+  LOG(INFO) << "Joining...";
+  server->shutdown();
+  server->join();
+  EXPECT_EQ(1, server->getAcceptedConns());
+}
+
+TEST(AsyncMcServer, basic_reflection) {
+  TestServer::Config config;
+  config.useSsl = false;
+  config.tosReflection = true;
+  auto server = TestServer::create(std::move(config));
+
+  LOG(INFO) << "creating client";
+
+  TestClient client(
+      "localhost", server->getListenPort(), 200, mc_caret_protocol);
+  client.sendGet("empty", carbon::Result::FOUND);
+  client.waitForReplies();
+
+  LOG(INFO) << "Joining...";
+  server->shutdown();
+  server->join();
+  EXPECT_EQ(1, server->getAcceptedConns());
+}
+
+TEST(AsyncMcServer, basic_reflection_ssl) {
+  TestServer::Config config;
+  config.useSsl = true;
+  config.tosReflection = true;
+  auto server = TestServer::create(std::move(config));
+
+  LOG(INFO) << "creating client";
+
+  TestClient client(
+      "localhost",
+      server->getListenPort(),
+      200,
+      mc_caret_protocol,
+      validClientSsl());
   client.sendGet("empty", carbon::Result::FOUND);
   client.waitForReplies();
 

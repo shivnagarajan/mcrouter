@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -21,6 +21,11 @@
 using boost::filesystem::complete;
 using boost::filesystem::path;
 using boost::filesystem::read_symlink;
+
+DEFINE_bool(
+    mcrouter_enable_inotify_watch,
+    true,
+    "Enable inotify watch on config file");
 
 namespace facebook {
 namespace memcache {
@@ -84,7 +89,9 @@ FileDataProvider::FileDataProvider(std::string filePath)
     throw std::runtime_error("File path empty");
   }
 
-  updateInotifyWatch();
+  if (FLAGS_mcrouter_enable_inotify_watch) {
+    updateInotifyWatch();
+  }
 }
 
 std::string FileDataProvider::load() const {

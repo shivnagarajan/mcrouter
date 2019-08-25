@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -165,6 +165,7 @@ createSocket(
     if (securityOpts.tfoEnabledForSsl) {
       sslSocket->enableTFO();
     }
+    sslSocket->forceCacheAddrOnFailure(true);
     socket.reset(sslSocket);
   } else {
     // tls 13 fizz

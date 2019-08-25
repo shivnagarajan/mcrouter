@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -125,6 +125,15 @@ TEST(Session, quit) {
   EXPECT_EQ(
       vector<string>({"VALUE key 0 9\r\nkey_value\r\nEND\r\n"}),
       t.flushWrites());
+}
+
+/* Same as McServerAsciiParserHarness.quitWithVersion, except Async */
+TEST(Session, quitWithVersion) {
+  AsyncMcServerWorkerOptions opts;
+  SessionTestHarness t(opts);
+  t.inputPackets("quit\r\nversion");
+
+  EXPECT_EQ(vector<string>({}), t.flushWrites());
 }
 
 TEST(Session, closeBeforeReply) {

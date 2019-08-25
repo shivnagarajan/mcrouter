@@ -1,9 +1,8 @@
 /*
- *  Copyright (c) 2016-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the LICENSE
+ * file in the root directory of this source tree.
  */
 #pragma once
 
@@ -396,6 +395,10 @@ class CarbonProtocolWriter {
         len);
     writeVarint(static_cast<uint32_t>(len));
     appender_.insert(buf);
+  }
+
+  void writeFixedSize(const folly::ByteRange& range) {
+    appender_.push(range.data(), range.size());
   }
 
   void writeRaw(const bool b) {

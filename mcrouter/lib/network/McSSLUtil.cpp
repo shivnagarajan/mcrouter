@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -25,13 +25,13 @@ static McSSLUtil::SSLVerifyFunction& getAppFuncRef() {
   return VERIFIER;
 }
 
-static McSSLUtil::SSLFinalizeFunction& getServerFinalizeFuncRef() {
-  static McSSLUtil::SSLFinalizeFunction FINALIZER;
+static McSSLUtil::TransportFinalizeFunction& getServerFinalizeFuncRef() {
+  static McSSLUtil::TransportFinalizeFunction FINALIZER;
   return FINALIZER;
 }
 
-static McSSLUtil::SSLFinalizeFunction& getClientFinalizeFuncRef() {
-  static McSSLUtil::SSLFinalizeFunction FINALIZER;
+static McSSLUtil::TransportFinalizeFunction& getClientFinalizeFuncRef() {
+  static McSSLUtil::TransportFinalizeFunction FINALIZER;
   return FINALIZER;
 }
 
@@ -109,17 +109,19 @@ bool McSSLUtil::verifySSL(
   return func(sock, preverifyOk, ctx);
 }
 
-void McSSLUtil::setApplicationServerSSLFinalizer(SSLFinalizeFunction func) {
+void McSSLUtil::setApplicationServerTransportFinalizer(
+    TransportFinalizeFunction func) {
   folly::SharedMutex::WriteHolder wh(getMutex());
   getServerFinalizeFuncRef() = std::move(func);
 }
 
-void McSSLUtil::setApplicationClientSSLFinalizer(SSLFinalizeFunction func) {
+void McSSLUtil::setApplicationClientTransportFinalizer(
+    TransportFinalizeFunction func) {
   folly::SharedMutex::WriteHolder wh(getMutex());
   getClientFinalizeFuncRef() = std::move(func);
 }
 
-void McSSLUtil::finalizeServerSSL(
+void McSSLUtil::finalizeServerTransport(
     folly::AsyncTransportWrapper* transport) noexcept {
   folly::SharedMutex::ReadHolder rh(getMutex());
   auto& func = getServerFinalizeFuncRef();
@@ -128,7 +130,7 @@ void McSSLUtil::finalizeServerSSL(
   }
 }
 
-void McSSLUtil::finalizeClientSSL(
+void McSSLUtil::finalizeClientTransport(
     folly::AsyncTransportWrapper* transport) noexcept {
   folly::SharedMutex::ReadHolder rh(getMutex());
   auto& func = getClientFinalizeFuncRef();
@@ -149,6 +151,12 @@ folly::AsyncTransportWrapper::UniquePtr McSSLUtil::moveToPlaintext(
   if (!negotiatedPlaintextFallback(sock)) {
     return nullptr;
   }
+
+  /// get the addresses out of the sock
+  folly::SocketAddress local;
+  folly::SocketAddress peer;
+  sock.getLocalAddress(&local);
+  sock.getPeerAddress(&peer);
 
   // Get the stats for the socket
   SecurityTransportStats stats;
@@ -180,6 +188,7 @@ folly::AsyncTransportWrapper::UniquePtr McSSLUtil::moveToPlaintext(
   res->setSelfCertificate(std::move(selfCert));
   res->setPeerCertificate(std::move(peerCert));
   res->setStats(stats);
+  res->setAddresses(std::move(local), std::move(peer));
   return res;
 }
 

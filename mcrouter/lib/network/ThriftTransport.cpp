@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -64,8 +64,6 @@ double ThriftTransportBase::getRetransmitsPerKb() {
   return 0.0;
 }
 
-void ThriftTransportBase::setFlushList(FlushList* /* flushList */) {}
-
 apache::thrift::async::TAsyncTransport::UniquePtr
 ThriftTransportBase::getConnectingSocket() {
   return folly::fibers::runInMainContext([this] {
@@ -87,25 +85,18 @@ ThriftTransportBase::getConnectingSocket() {
       return apache::thrift::async::TAsyncTransport::UniquePtr{};
     }
     folly::SocketAddress address = std::move(sockAddressExpected).value();
-
     auto socketOptions = createSocketOptions(address, connectionOptions_);
-    const auto mech = connectionOptions_.accessPoint->getSecurityMech();
     connectionState_ = ConnectionState::Connecting;
-    if (mech == SecurityMech::TLS13_FIZZ) {
-      auto fizzClient = socket->getUnderlyingTransport<McFizzClient>();
-      fizzClient->connect(
-          this,
-          address,
-          connectionOptions_.connectTimeout.count(),
-          socketOptions);
-    } else {
-      auto asyncSock = socket->getUnderlyingTransport<folly::AsyncSocket>();
-      asyncSock->connect(
-          this,
-          address,
-          connectionOptions_.connectTimeout.count(),
-          socketOptions);
-    }
+    DCHECK(
+        connectionOptions_.accessPoint->getSecurityMech() ==
+        SecurityMech::NONE);
+
+    auto asyncSock = socket->getUnderlyingTransport<folly::AsyncSocket>();
+    asyncSock->connect(
+        this,
+        address,
+        connectionOptions_.connectTimeout.count(),
+        socketOptions);
     return socket;
   });
 }
@@ -117,6 +108,7 @@ apache::thrift::RocketClientChannel::Ptr ThriftTransportBase::createChannel() {
   }
   auto channel =
       apache::thrift::RocketClientChannel::newChannel(std::move(socket));
+  channel->setProtocolId(apache::thrift::protocol::T_COMPACT_PROTOCOL);
   channel->setCloseCallback(this);
   return channel;
 }
@@ -125,6 +117,7 @@ apache::thrift::RpcOptions ThriftTransportBase::getRpcOptions(
     std::chrono::milliseconds timeout) const {
   apache::thrift::RpcOptions rpcOptions;
   rpcOptions.setTimeout(timeout);
+  rpcOptions.setClientOnlyTimeouts(true);
   return rpcOptions;
 }
 

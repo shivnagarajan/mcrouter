@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -104,9 +104,11 @@ class TestServer {
     std::string certPath = getDefaultCertPath();
     std::string keyPath = getDefaultKeyPath();
     bool requirePeerCerts = true;
+    bool tlsPreferOcbCipher = false;
     std::function<void(McServerSession&)> onConnectionAcceptedAdditionalCb;
     size_t tcpZeroCopyThresholdBytes = 0;
     bool useKtls12 = false;
+    bool tosReflection = false;
   };
 
   template <class OnRequest = TestServerOnRequest>
@@ -174,6 +176,7 @@ struct SSLTestPaths {
   std::string sslKeyPath;
   std::string sslCaPath;
   SecurityMech mech{SecurityMech::TLS};
+  bool useOcbCipher{false};
 };
 
 // valid Client SSL Certs

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -307,6 +307,7 @@ void ProxyDestination<Transport>::initializeTransport() {
     options.securityOpts.sslHandshakeOffload = opts.ssl_handshake_offload;
     options.securityOpts.sslServiceIdentity = opts.ssl_service_identity;
     options.securityOpts.tfoEnabledForSsl = opts.enable_ssl_tfo;
+    options.securityOpts.tlsPreferOcbCipher = opts.tls_prefer_ocb_cipher;
   }
 
   auto client =

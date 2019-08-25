@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -38,6 +38,13 @@ template <typename T, typename = std::string&>
 struct HasMessage : std::false_type {};
 template <typename T>
 struct HasMessage<T, decltype(std::declval<T>().message())> : std::true_type {};
+
+template <typename T, typename = int16_t&>
+struct HasAppSpecificErrorCode : std::false_type {};
+template <typename T>
+struct HasAppSpecificErrorCode<
+    T,
+    decltype(std::declval<T>().appSpecificErrorCode())> : std::true_type {};
 
 template <class RequestList>
 struct GetRequestReplyPairsImpl;
@@ -99,6 +106,21 @@ template <class Request>
 typename std::enable_if_t<!Request::hasKey, folly::StringPiece> getFullKey(
     const Request&) {
   return "";
+}
+
+template <typename Reply>
+typename std::enable_if_t<
+    detail::HasAppSpecificErrorCode<Reply>::value,
+    folly::Optional<int16_t>>
+getAppSpecificErrorCode(const Reply& reply) {
+  return reply.appSpecificErrorCode();
+}
+template <typename Reply>
+typename std::enable_if_t<
+    !detail::HasAppSpecificErrorCode<Reply>::value,
+    folly::Optional<int16_t>>
+getAppSpecificErrorCode(const Reply&) {
+  return folly::none;
 }
 
 namespace detail {

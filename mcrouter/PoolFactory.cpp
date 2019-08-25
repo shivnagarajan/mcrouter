@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -26,6 +26,14 @@ PoolFactory::PoolFactory(const folly::dynamic& config, ConfigApiIf& configApi)
           it.first.stringPiece(), std::make_pair(it.second, PoolState::NEW));
     }
   }
+}
+
+PoolFactory::PoolFactory(
+    const folly::dynamic& config,
+    ConfigApiIf& configApi,
+    folly::json::metadata_map configMetadataMap)
+    : PoolFactory(config, configApi) {
+  configMetadataMap_ = std::move(configMetadataMap);
 }
 
 PoolFactory::PoolJson PoolFactory::parseNamedPool(folly::StringPiece name) {

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -80,6 +80,9 @@ class McAsciiParserBase {
       folly::IOBuf& buffer,
       const char* posStart,
       const char* posEnd);
+
+  // limit the value size.
+  static constexpr uint32_t maxValueBytes = 1 * 1024 * 1024 * 1024; // 1GB
 
   std::string currentErrorDescription_;
 

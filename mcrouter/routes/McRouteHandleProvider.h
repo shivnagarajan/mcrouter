@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -13,6 +13,7 @@
 #include <vector>
 
 #include <folly/Range.h>
+#include <folly/json.h>
 
 #include "mcrouter/PoolFactory.h"
 #include "mcrouter/lib/config/RouteHandleProviderIf.h"

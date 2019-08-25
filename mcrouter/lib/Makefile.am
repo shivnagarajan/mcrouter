@@ -35,7 +35,7 @@ libmcrouter_a_SOURCES = \
   MessageQueue.h \
   McResUtil.h \
   Operation.h \
-  OperationTraits.h \
+  PoolContext.h \
   Ref.h \
   RendezvousHashFunc.cpp \
   RendezvousHashFunc.h \
@@ -119,7 +119,6 @@ libmcrouter_a_SOURCES = \
   fbi/cpp/globals.h \
   fbi/cpp/ParsingUtil.cpp \
   fbi/cpp/ParsingUtil.h \
-  fbi/cpp/sfrlock.h \
   fbi/cpp/util.cpp \
   fbi/cpp/util.h \
   fbi/decls.h \
@@ -130,8 +129,6 @@ libmcrouter_a_SOURCES = \
   fbi/network.c \
   fbi/network.h \
   fbi/queue.h \
-  fbi/sfrlock.cpp \
-  fbi/sfrlock.h \
   fbi/time.h \
   fbi/util.h \
   mc/msg.cpp \
@@ -217,7 +214,6 @@ libmcrouter_a_SOURCES = \
   network/MemcacheMessageHelpers.h \
   network/MultiOpParent.cpp \
   network/MultiOpParent.h \
-	network/NoOpTransport.h \
   network/SecurityOptions.cpp \
   network/SecurityOptions.h \
   network/ServerLoad.cpp \

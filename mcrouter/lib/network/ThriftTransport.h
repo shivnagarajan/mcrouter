@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -70,8 +70,6 @@ class ThriftTransportBase : public Transport,
 
   double getRetransmitsPerKb() override final;
 
-  void setFlushList(FlushList* /* flushList */) override final;
-
  protected:
   folly::EventBase& eventBase_;
   const ConnectionOptions connectionOptions_;
@@ -142,6 +140,8 @@ class ThriftTransport : public ThriftTransportBase {
   }
 
   void resetClient() override final {}
+
+  void setFlushList(FlushList* /* flushList */) override final {}
 };
 
 } // namespace memcache

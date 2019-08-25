@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the LICENSE
@@ -79,21 +79,18 @@ class DestinationRoute {
 
   template <class Request>
   bool traverse(
-      const Request&,
-      const RouteHandleTraverser<typename RouterInfo::RouteHandleIf>&) const {
-    auto* ctx = fiber_local<RouterInfo>::getTraverseCtx();
-    if (ctx) {
-      bool isShadow =
-          fiber_local<RouterInfo>::getRequestClass().is(RequestClass::kShadow);
-      ctx->recordDestination(
-          PoolContext{poolName_, indexInPool_, isShadow},
-          *destination_->accessPoint());
-      if (fiber_local<RouterInfo>::getTraverseEarlyExit() &&
-          !destination_->tracker()->isTko() && !isShadow) {
-        return true;
-      }
+      const Request& req,
+      const RouteHandleTraverser<typename RouterInfo::RouteHandleIf>& t) const {
+    PoolContext poolContext{
+        poolName_,
+        indexInPool_,
+        fiber_local<RouterInfo>::getRequestClass().is(RequestClass::kShadow)};
+    const auto& accessPoint = *destination_->accessPoint();
+    if (auto* ctx = fiber_local<RouterInfo>::getTraverseCtx()) {
+      ctx->recordDestination(poolContext, accessPoint);
     }
-    return false;
+    return t(accessPoint, poolContext, req) &&
+        !destination_->tracker()->isTko();
   }
 
   memcache::McDeleteReply route(const memcache::McDeleteRequest& req) const {
