@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #include "AsyncMcClientImpl.h"
 
 #include <netinet/tcp.h>
@@ -32,7 +33,7 @@ constexpr size_t kStackIovecs = 128;
 constexpr size_t kMaxBatchSize = 24576 /* 24KB */;
 
 namespace {
-class OnEventBaseDestructionCallback
+class OnEventBaseDestructionCallback final
     : public folly::EventBase::OnDestructionCallback {
  public:
   explicit OnEventBaseDestructionCallback(AsyncMcClientImpl& client)
@@ -135,10 +136,10 @@ void AsyncMcClientImpl::setConnectionStatusCallbacks(
     ConnectionStatusCallbacks callbacks) {
   DestructorGuard dg(this);
 
-  statusCallbacks_ = std::move(callbacks);
+  connectionCallbacks_ = std::move(callbacks);
 
-  if (connectionState_ == ConnectionState::Up && statusCallbacks_.onUp) {
-    statusCallbacks_.onUp(*socket_, getNumConnectRetries());
+  if (connectionState_ == ConnectionState::Up && connectionCallbacks_.onUp) {
+    connectionCallbacks_.onUp(*socket_, getNumConnectRetries());
   }
 }
 
@@ -147,6 +148,11 @@ void AsyncMcClientImpl::setRequestStatusCallbacks(
   DestructorGuard dg(this);
 
   requestStatusCallbacks_ = std::move(callbacks);
+}
+
+void AsyncMcClientImpl::setAuthorizationCallbacks(
+    AuthorizationCallbacks callbacks) {
+  authorizationCallbacks_ = std::move(callbacks);
 }
 
 AsyncMcClientImpl::~AsyncMcClientImpl() {
@@ -468,6 +474,16 @@ void AsyncMcClientImpl::connectSuccess() noexcept {
   }
   McSSLUtil::finalizeClientTransport(socket_.get());
 
+  // Now authorize the connection
+  if (isAsyncSSLSocketMech(mech) && authorizationCallbacks_.onAuthorize &&
+      !authorizationCallbacks_.onAuthorize(*socket_, connectionOptions_)) {
+    if (connectionOptions_.securityOpts.sslAuthorizationEnforce) {
+      // Enforcement is enabled, close the connection.
+      closeNow();
+      return;
+    }
+  }
+
   assert(queue_.getInflightRequestCount() == 0);
   assert(queue_.getParserInitializer() == nullptr);
 
@@ -494,8 +510,8 @@ void AsyncMcClientImpl::connectSuccess() noexcept {
     }
   }
 
-  if (statusCallbacks_.onUp) {
-    statusCallbacks_.onUp(*socket_, getNumConnectRetries());
+  if (connectionCallbacks_.onUp) {
+    connectionCallbacks_.onUp(*socket_, getNumConnectRetries());
   }
 
   numConnectTimeoutRetriesLeft_ = connectionOptions_.numConnectTimeoutRetries;
@@ -553,8 +569,8 @@ void AsyncMcClientImpl::connectErr(
     attemptConnection();
   } else {
     queue_.failAllPending(error, errorMessage);
-    if (statusCallbacks_.onDown) {
-      statusCallbacks_.onDown(reason, getNumConnectRetries());
+    if (connectionCallbacks_.onDown) {
+      connectionCallbacks_.onDown(reason, getNumConnectRetries());
     }
     numConnectTimeoutRetriesLeft_ = connectionOptions_.numConnectTimeoutRetries;
   }
@@ -587,8 +603,8 @@ void AsyncMcClientImpl::processShutdown(folly::StringPiece errorMessage) {
 
         // This is a last processShutdown() for this error and it is safe
         // to go DOWN.
-        if (statusCallbacks_.onDown) {
-          statusCallbacks_.onDown(
+        if (connectionCallbacks_.onDown) {
+          connectionCallbacks_.onDown(
               isAborting_ ? ConnectionDownReason::ABORTED
                           : ConnectionDownReason::ERROR,
               getNumConnectRetries());
@@ -734,8 +750,8 @@ void AsyncMcClientImpl::handleConnectionControlMessage(
       if (connectionState_ != ConnectionState::Up) {
         break;
       }
-      if (statusCallbacks_.onDown) {
-        statusCallbacks_.onDown(
+      if (connectionCallbacks_.onDown) {
+        connectionCallbacks_.onDown(
             ConnectionDownReason::SERVER_GONE_AWAY, getNumConnectRetries());
       }
       pendingGoAwayReply_ = true;

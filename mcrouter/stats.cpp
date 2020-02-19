@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #include "stats.h"
 
 #include <dirent.h>
@@ -250,7 +251,7 @@ static std::string stat_to_str(const stat_t* stat, void* /* ptr */) {
   }
 }
 
-void init_stats(stat_t* stats) {
+void init_stats(stat_t* stats){
 #define STAT(_name, _type, _aggregate, _data_assignment) \
   {                                                      \
     stat_t& s = stats[_name##_stat];                     \
@@ -515,6 +516,8 @@ void prepare_stats(CarbonRouterInstanceBase& router, stat_t* stats) {
     stats[inactive_connection_closed_interval_sec_stat].data.dbl +=
         pr->stats().inactiveConnectionClosedIntervalSec().value();
     stats[client_queue_notify_period_stat].data.dbl += pr->queueNotifyPeriod();
+    stats[asynclog_duration_us_stat].data.dbl +=
+        pr->stats().asyncLogDurationUs().value();
   }
 
   if (router.opts().num_proxies > 0) {
@@ -525,6 +528,7 @@ void prepare_stats(CarbonRouterInstanceBase& router, stat_t* stats) {
         router.opts().num_proxies;
     stats[client_queue_notify_period_stat].data.dbl /=
         router.opts().num_proxies;
+    stats[asynclog_duration_us_stat].data.dbl /= router.opts().num_proxies;
   }
 
   for (int i = 0; i < num_stats; i++) {
@@ -658,9 +662,9 @@ McStatsReply stats_reply(ProxyBase* proxy, folly::StringPiece group_str) {
     auto& router = proxy->router();
     for (size_t i = 0; i < router.opts().num_proxies; ++i) {
       router.getProxyBase(i)->destinationMap()->foreachDestinationSynced(
-          [&serverStats](
-              folly::StringPiece key, const ProxyDestinationBase& pdstn) {
-            auto& stat = serverStats[key];
+          [&serverStats](const ProxyDestinationBase& pdstn) {
+            ProxyDestinationKey key(pdstn);
+            auto& stat = serverStats[key.str()];
             stat.isHardTko = pdstn.tracker()->isHardTko();
             stat.isSoftTko = pdstn.tracker()->isSoftTko();
             if (pdstn.stats().results) {
@@ -716,6 +720,6 @@ void set_standalone_args(folly::StringPiece args) {
   ::memcpy(gStandaloneArgs, args.begin(), args.size());
   gStandaloneArgs[args.size()] = 0;
 }
-}
-}
-} // facebook::memcache::mcrouter
+} // namespace mcrouter
+} // namespace memcache
+} // namespace facebook

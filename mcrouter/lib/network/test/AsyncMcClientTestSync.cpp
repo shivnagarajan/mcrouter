@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #include <string>
 
 #include <gtest/gtest.h>
@@ -1159,7 +1160,6 @@ TEST_P(AsyncMcClientSSLOffloadTest, clientReset) {
   auto lc = std::make_unique<folly::fibers::EventBaseLoopController>();
   lc->attachEventBase(evb);
   folly::fibers::FiberManager fm(std::move(lc));
-  folly::Optional<ConnectionDownReason> downReason;
   auto client = std::make_unique<AsyncMcClient>(evb, opts);
   auto clientPtr = client.get();
   fm.addTask([clientPtr] {

@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #include <folly/dynamic.h>
 
 #include "mcrouter/lib/config/RouteHandleProviderIf.h"
@@ -90,6 +91,7 @@ RouteHandleFactory<RouteHandleIf>::createList(const folly::dynamic& json) {
         ret.push_back(std::move(listIt));
       }
     }
+    ret.shrink_to_fit();
     return ret;
   } else if (json.isObject()) {
     auto jName = json.get_ptr("name");

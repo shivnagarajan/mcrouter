@@ -1,15 +1,17 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <memory>
 #include <string>
 #include <vector>
 
+#include <folly/Optional.h>
 #include <folly/Traits.h>
 #include <folly/fibers/FiberManager.h>
 #include <folly/fibers/SimpleLoopController.h>
@@ -71,6 +73,7 @@ class SimpleRouteHandleProvider : public RouteHandleProviderIf<RouteHandleIf> {
 
     if (jsonPtr->isArray()) {
       for (const auto& child : *jsonPtr) {
+        (void)child;
         result.push_back(mcrouter::createNullRoute<RouteHandleIf>());
       }
     } else {
@@ -143,11 +146,16 @@ struct TestHandleImpl {
 
   std::vector<std::string> sawShadowIds;
 
+  std::vector<uint64_t> sawFlags;
+
   bool isTko;
 
   bool isPaused;
 
   std::vector<folly::fibers::Promise<void>> promises_;
+
+  folly::Optional<std::function<carbon::Result(std::string reqKey)>>
+      resultGenerator_;
 
   explicit TestHandleImpl(GetRouteTestData td)
       : rh(makeRouteHandle<RouteHandleIf, RecordingRoute>(
@@ -215,6 +223,15 @@ struct TestHandleImpl {
       promises_.push_back(std::move(promise));
     });
     isPaused = false;
+  }
+
+  void setResultGenerator(
+      std::function<carbon::Result(std::string reqKey)> getResult) {
+    resultGenerator_ = std::move(getResult);
+  }
+
+  void resetResultGenerator() {
+    resultGenerator_ = folly::none;
   }
 };
 
@@ -306,9 +323,12 @@ struct RecordingRoute {
     h_->saw_keys.push_back(req.key().fullKey().str());
     h_->sawOperations.push_back(Request::name);
     h_->sawExptimes.push_back(req.exptime());
+    h_->sawFlags.push_back(req.flags());
     recordShadowId(req);
     if (carbon::GetLike<Request>::value) {
-      reply.result() = dataGet_.result_;
+      reply.result() = h_->resultGenerator_.hasValue()
+          ? (*h_->resultGenerator_)(req.key().fullKey().str())
+          : dataGet_.result_;
       detail::setReplyValue(reply, dataGet_.value_);
       detail::testSetFlags(reply, dataGet_.flags_);
       setAppspecificErrorCode(reply);
@@ -320,12 +340,16 @@ struct RecordingRoute {
         folly::StringPiece sp_value = coalesceAndGetRange(val);
         h_->sawValues.push_back(sp_value.str());
       }
-      reply.result() = dataUpdate_.result_;
+      reply.result() = h_->resultGenerator_.hasValue()
+          ? (*h_->resultGenerator_)(req.key().fullKey().str())
+          : dataUpdate_.result_;
       detail::testSetFlags(reply, dataUpdate_.flags_);
       return reply;
     }
     if (carbon::DeleteLike<Request>::value) {
-      reply.result() = dataDelete_.result_;
+      reply.result() = h_->resultGenerator_.hasValue()
+          ? (*h_->resultGenerator_)(req.key().fullKey().str())
+          : dataDelete_.result_;
       return reply;
     }
     return createReply(DefaultReply, req);
@@ -345,12 +369,17 @@ inline std::vector<std::shared_ptr<RouteHandleIf>> get_route_handles(
 
 class TestFiberManager {
  public:
-  TestFiberManager()
-      : fm_(std::make_unique<folly::fibers::SimpleLoopController>()) {}
+  TestFiberManager(size_t recordFiberStackEvery = kRecordFiberStackEveryDefault)
+      : fm_(std::make_unique<folly::fibers::SimpleLoopController>(),
+            getFiberOptions(recordFiberStackEvery)) {}
 
   template <class LocalType>
-  explicit TestFiberManager(LocalType t)
-      : fm_(t, std::make_unique<folly::fibers::SimpleLoopController>()) {}
+  explicit TestFiberManager(
+      LocalType t,
+      size_t recordFiberStackEvery = kRecordFiberStackEveryDefault)
+      : fm_(t,
+            std::make_unique<folly::fibers::SimpleLoopController>(),
+            getFiberOptions(recordFiberStackEvery)) {}
 
   void run(std::function<void()>&& fun) {
     runAll({std::move(fun)});
@@ -366,6 +395,13 @@ class TestFiberManager {
     });
 
     loopController.loop([]() {});
+
+    // Fiber stack high watermark stat is only available for build without ASAN
+    // since Folly always returns 0 when FOLLY_SANITIZE_ADDRESS is set.
+    auto stackHighWatermark = fm.stackHighWatermark();
+    if (stackHighWatermark > 0) {
+      VLOG(2) << "fiber stack high watermark: " << stackHighWatermark;
+    }
   }
 
   folly::fibers::FiberManager& getFiberManager() {
@@ -374,6 +410,14 @@ class TestFiberManager {
 
  private:
   folly::fibers::FiberManager fm_;
+  static constexpr size_t kRecordFiberStackEveryDefault = 0;
+
+  static folly::fibers::FiberManager::Options getFiberOptions(
+      size_t recordFiberStackEvery = 0) {
+    folly::fibers::FiberManager::Options ret;
+    ret.recordStackEvery = recordFiberStackEvery;
+    return ret;
+  }
 };
 
 inline std::string toString(const folly::IOBuf& buf) {

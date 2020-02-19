@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #include <signal.h>
 
 #include <cstdio>
@@ -43,8 +44,10 @@ inline std::function<void(McServerSession&)> getAclChecker(
           failure::Category::kSystemError,
           "Error creating acl checker: {}",
           ex.what());
-      LOG(WARNING) << "Disabling acl checker on all threads.";
+      LOG(WARNING) << "Disabling acl checker on all threads due to error.";
     }
+  } else {
+    LOG(WARNING) << "acl checker will not be enabled.";
   }
   return [](McServerSession&) {};
 }

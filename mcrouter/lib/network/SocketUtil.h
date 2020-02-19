@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <folly/Expected.h>
@@ -39,6 +40,17 @@ createSocket(
     folly::EventBase& eventBase,
     const ConnectionOptions& connectionOptions);
 
+/**
+ * Like createSocket(), but instead creates a TAsyncSocket-based socket that
+ * plays well with Thrift clients and channels; all AsyncSocketExceptions are
+ * automatically converted into TAsyncTransportExceptions.
+ */
+folly::Expected<
+    folly::AsyncTransportWrapper::UniquePtr,
+    folly::AsyncSocketException>
+createTAsyncSocket(
+    folly::EventBase& eventBase,
+    const ConnectionOptions& connectionOptions);
 /**
  * Get the socket address based on the given options.
  */

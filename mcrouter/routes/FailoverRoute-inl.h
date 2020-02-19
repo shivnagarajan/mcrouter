@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include "mcrouter/lib/routes/NullRoute.h"
@@ -186,6 +187,25 @@ makeFailoverRouteWithFailoverErrorSettings(
           *jFailoverPolicy,
           std::move(failoverErrors),
           std::forward<Args>(args)...);
+    } else if (
+        parseString(*jPolicyType, "type") == "DeterministicOrderPolicy") {
+      using FailoverPolicyT = FailoverDeterministicOrderPolicy<
+          typename RouterInfo::RouteHandleIf,
+          RouterInfo>;
+      folly::dynamic newFailoverPolicy = *jFailoverPolicy;
+      if (auto jHash = json.get_ptr("hash")) {
+        newFailoverPolicy.insert("hash", *jHash);
+      }
+      return makeFailoverRouteWithPolicyAndFailoverError<
+          RouterInfo,
+          RouteHandle,
+          FailoverPolicyT,
+          FailoverErrorsSettingsT>(
+          json,
+          std::move(children),
+          newFailoverPolicy,
+          std::move(failoverErrors),
+          std::forward<Args>(args)...);
     }
   }
   using FailoverPolicyT =
@@ -240,6 +260,6 @@ std::shared_ptr<typename RouterInfo::RouteHandleIf> makeFailoverRouteDefault(
       std::forward<Args>(args)...);
 }
 
-} // mcrouter
-} // memcache
-} // facebook
+} // namespace mcrouter
+} // namespace memcache
+} // namespace facebook

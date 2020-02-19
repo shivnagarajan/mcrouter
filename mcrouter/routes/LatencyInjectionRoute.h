@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <cassert>
@@ -130,7 +131,7 @@ typename RouterInfo::RouteHandlePtr makeLatencyInjectionRoute(
 
   if (beforeLatency.count() == 0 && afterLatency.count() == 0) {
     // if we are not injecting any latency, optimize this rh away.
-    return std::move(child);
+    return child;
   }
 
   return makeRouteHandleWithInfo<RouterInfo, LatencyInjectionRoute>(

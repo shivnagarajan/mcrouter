@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <cctype>
@@ -15,6 +16,8 @@
 #include <folly/Optional.h>
 #include <folly/Range.h>
 #include <thrift/lib/cpp2/FieldRef.h>
+#include <thrift/lib/cpp2/protocol/Serializer.h>
+#include <thrift/lib/cpp2/protocol/SimpleJSONProtocol.h>
 
 #include "mcrouter/lib/carbon/CommonSerializationTraits.h"
 #include "mcrouter/lib/carbon/Fields.h"
@@ -236,9 +239,11 @@ class McPiperVisitor {
   std::enable_if_t<
       carbon::IsThriftWrapperStruct<T>::value,
       facebook::memcache::StyledString>
-  serialize(const T& /* value */) {
+  serialize(const T& t) {
     facebook::memcache::StyledString out;
-    out.append(serializeString("<Thrift structure>"));
+    out.append(serializeString(
+        apache::thrift::SimpleJSONSerializer::serialize<std::string>(
+            t.getThriftStruct())));
     return out;
   }
 
@@ -315,7 +320,7 @@ class McPiperVisitor {
   }
 };
 
-} // detail
+} // namespace detail
 
 template <class R>
 facebook::memcache::StyledString
@@ -325,4 +330,4 @@ print(const R& req, folly::StringPiece /* name */, bool script) {
   return std::move(printer).styled();
 }
 
-} // carbon
+} // namespace carbon

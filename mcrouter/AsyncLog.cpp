@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #include "AsyncLog.h"
 
 #include <fcntl.h>
@@ -210,10 +211,11 @@ bool AsyncLog::openFile() {
 AsyncLog::AsyncLog(const McrouterOptions& options) : options_(options) {}
 
 /** Adds an asynchronous request to the event log. */
-void AsyncLog::writeDelete(
+bool AsyncLog::writeDelete(
     const AccessPoint& ap,
     folly::StringPiece key,
-    folly::StringPiece poolName) {
+    folly::StringPiece poolName,
+    std::unordered_map<std::string, uint64_t> attributes) {
   dynamic json = dynamic::array;
   const auto& host = ap.getHost();
   const auto port = options_.asynclog_port_override == 0
@@ -226,6 +228,9 @@ void AsyncLog::writeDelete(
     json["h"] = folly::sformat("[{}]:{}", host, port);
     json["p"] = poolName.str();
     json["k"] = key.str();
+    if (attributes.size() != 0) {
+      json["a"] = folly::toDynamic(attributes);
+    }
   } else {
     /* ["host", port, escaped_command] */
     json.push_back(host);
@@ -240,7 +245,7 @@ void AsyncLog::writeDelete(
         "asynclog_open() failed (key {}, pool {})",
         key,
         poolName);
-    return;
+    return false;
   }
 
   // ["AS1.0", 1289416829.836, "C", ["10.0.0.1", 11302, "delete foo\r\n"]]
@@ -272,7 +277,9 @@ void AsyncLog::writeDelete(
         "Error fully writing asynclog request (key {}, pool {})",
         key,
         poolName);
+    return false;
   }
+  return true;
 }
 
 } // mcrouter

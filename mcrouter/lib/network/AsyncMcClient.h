@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <chrono>
@@ -35,7 +36,7 @@ struct RpcStatsContext;
  * as we have at least one request, but it will be impossible to send more
  * requests).
  */
-class AsyncMcClient : public Transport {
+class AsyncMcClient final : public Transport {
  public:
   using FlushList = Transport::FlushList;
   using RequestQueueStats = Transport::RequestQueueStats;
@@ -66,6 +67,9 @@ class AsyncMcClient : public Transport {
    */
   void setRequestStatusCallbacks(
       RequestStatusCallbacks callbacks) override final;
+
+  void setAuthorizationCallbacks(
+      AuthorizationCallbacks callbacks) override final;
 
   /**
    * Send request synchronously (i.e. blocking call).

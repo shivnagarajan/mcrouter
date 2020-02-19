@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <chrono>
@@ -45,6 +46,7 @@ class AsyncMcClientImpl : public folly::DelayedDestruction,
   using FlushList = Transport::FlushList;
   using ConnectionStatusCallbacks = Transport::ConnectionStatusCallbacks;
   using RequestStatusCallbacks = Transport::RequestStatusCallbacks;
+  using AuthorizationCallbacks = Transport::AuthorizationCallbacks;
   using RequestQueueStats = Transport::RequestQueueStats;
 
   static std::shared_ptr<AsyncMcClientImpl> create(
@@ -60,6 +62,8 @@ class AsyncMcClientImpl : public folly::DelayedDestruction,
   void setConnectionStatusCallbacks(ConnectionStatusCallbacks callbacks);
 
   void setRequestStatusCallbacks(RequestStatusCallbacks callbacks);
+
+  void setAuthorizationCallbacks(AuthorizationCallbacks callbacks);
 
   template <class Request>
   ReplyT<Request> sendSync(
@@ -101,8 +105,9 @@ class AsyncMcClientImpl : public folly::DelayedDestruction,
   // Socket related variables.
   ConnectionState connectionState_{ConnectionState::Down};
   folly::AsyncTransportWrapper::UniquePtr socket_;
-  ConnectionStatusCallbacks statusCallbacks_;
+  ConnectionStatusCallbacks connectionCallbacks_;
   RequestStatusCallbacks requestStatusCallbacks_;
+  AuthorizationCallbacks authorizationCallbacks_;
   int32_t numConnectTimeoutRetriesLeft_{0};
 
   // Debug pipe.
@@ -175,7 +180,7 @@ class AsyncMcClientImpl : public folly::DelayedDestruction,
   void logErrorWithContext(folly::StringPiece reason);
   folly::StringPiece clientStateToStr() const;
 
-  // TAsyncSocket::ConnectCallback overrides
+  // AsyncSocket::ConnectCallback overrides
   void connectSuccess() noexcept final;
   void connectErr(const folly::AsyncSocketException& ex) noexcept final;
 

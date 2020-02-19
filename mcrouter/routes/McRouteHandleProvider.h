@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <functional>
@@ -21,7 +22,7 @@
 
 namespace folly {
 struct dynamic;
-} // folly
+} // namespace folly
 
 namespace facebook {
 namespace memcache {
@@ -67,6 +68,9 @@ class McRouteHandleProvider
   folly::StringKeyedUnorderedMap<
       std::vector<std::shared_ptr<const AccessPoint>>>
   releaseAccessPoints() {
+    for (auto& it : accessPoints_) {
+      it.second.shrink_to_fit();
+    }
     return std::move(accessPoints_);
   }
 
@@ -107,8 +111,8 @@ class McRouteHandleProvider
       std::shared_ptr<AccessPoint> ap,
       std::chrono::milliseconds timeout,
       std::chrono::milliseconds connectTimeout,
-      uint64_t qosClass,
-      uint64_t qosPath,
+      uint32_t qosClass,
+      uint32_t qosPath,
       folly::StringPiece poolName,
       size_t indexInPool,
       int32_t poolStatIndex,
@@ -123,8 +127,8 @@ class McRouteHandleProvider
   std::unique_ptr<ExtraRouteHandleProviderIf<RouterInfo>> buildExtraProvider();
 };
 
-} // mcrouter
-} // memcache
-} // facebook
+} // namespace mcrouter
+} // namespace memcache
+} // namespace facebook
 
 #include "McRouteHandleProvider-inl.h"

@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <string>
@@ -246,7 +247,7 @@ class DestinationRoute {
   }
 
   template <class Request>
-  bool spool(const Request& req) const {
+  FOLLY_NOINLINE bool spool(const Request& req) const {
     auto asynclogName = fiber_local<RouterInfo>::getAsynclogName();
     if (asynclogName.empty()) {
       return false;
@@ -259,9 +260,13 @@ class DestinationRoute {
     auto& ap = *destination_->accessPoint();
     folly::fibers::Baton b;
     auto res = false;
+    auto attr = req.attributes();
+    const auto asyncWriteStartUs = nowUs();
     if (auto asyncWriter = proxy->router().asyncWriter()) {
-      res = asyncWriter->run([&b, &ap, proxy, key, asynclogName]() {
-        proxy->asyncLog().writeDelete(ap, key, asynclogName);
+      res = asyncWriter->run([&b, &ap, &attr, proxy, key, asynclogName]() {
+        if (proxy->asyncLog().writeDelete(ap, key, asynclogName, attr)) {
+          proxy->stats().increment(asynclog_spool_success_stat);
+        }
         b.post();
       });
     }
@@ -275,6 +280,8 @@ class DestinationRoute {
     } else {
       // Don't reply to the user until we safely logged the request to disk
       b.wait();
+      const auto asyncWriteDurationUs = nowUs() - asyncWriteStartUs;
+      proxy->stats().asyncLogDurationUs().insertSample(asyncWriteDurationUs);
       proxy->stats().increment(asynclog_requests_stat);
     }
     return true;

@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #include "SessionTestHarness.h"
 
 #include <folly/SocketAddress.h>
@@ -22,7 +23,7 @@ class MockAsyncSocket : public folly::AsyncTransportWrapper {
  public:
   explicit MockAsyncSocket(SessionTestHarness& harness) : harness_(harness) {}
 
-  // Methods inherited from TAsyncTransport
+  // Methods inherited from AsyncTransportWrapper
   void setReadCB(
       folly::AsyncTransportWrapper::ReadCallback* callback) override {
     harness_.setReadCallback(callback);

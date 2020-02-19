@@ -1,12 +1,9 @@
+#!/usr/bin/env python3
 # Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the MIT license found in the LICENSE
-# file in the root directory of this source tree.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import errno
 import os
@@ -23,7 +20,7 @@ import time
 from mcrouter.test.config import McrouterGlobals
 
 
-class BaseDirectory(object):
+class BaseDirectory:
     def __init__(self, prefix="mctest"):
         self.path = tempfile.mkdtemp(prefix=prefix + '.')
 
@@ -38,7 +35,7 @@ def MCPopen(cmd, stdout=None, stderr=None, env=None, pass_fds=()):
     return subprocess.Popen(cmd, stdout=stdout, stderr=stderr, env=env)
 
 
-class ProcessBase(object):
+class ProcessBase:
     """
     Generic process, extended by mcrouter, memcached, mcpiper, etc
     """
@@ -49,10 +46,6 @@ class ProcessBase(object):
         if base_dir is None:
             base_dir = BaseDirectory('ProcessBase')
         self.base_dir = base_dir
-        self.stdout = os.path.join(base_dir.path, 'stdout')
-        self.stderr = os.path.join(base_dir.path, 'stderr')
-        self.stdout_file = open(self.stdout, 'w')  # noqa: P201
-        self.stderr_file = open(self.stderr, 'w')  # noqa: P201
 
         self.cmd_line = 'no command line'
         if cmd:
@@ -70,8 +63,9 @@ class ProcessBase(object):
                     env = {'MALLOC_CONF': 'junk:true'}
                 else:
                     env = None
-                self.proc = MCPopen(cmd, self.stdout_file, self.stderr_file,
-                                    env, pass_fds=pass_fds)
+                self.proc = MCPopen(cmd, stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE, env=env,
+                                    pass_fds=pass_fds)
 
             except OSError:
                 sys.exit("Fatal: Could not run " + repr(" ".join(cmd)))
@@ -81,8 +75,6 @@ class ProcessBase(object):
     def __del__(self):
         if self.proc:
             self.proc.terminate()
-        self.stdout_file.close()
-        self.stderr_file.close()
 
     def getprocess(self):
         return self.proc
@@ -104,13 +96,10 @@ class ProcessBase(object):
         This allows us to get all this information in a test failure (hidden by
         default) so we can debug better. """
 
-        # Grumble... this would be so much easier if I could just pass
-        # sys.stdout/stderr to Popen.
-        with open(self.stdout, 'r') as stdout_f:
-            stdout = stdout_f.read()
-
-        with open(self.stderr, 'r') as stderr_f:
-            stderr = stderr_f.read()
+        try:
+            stdout, stderr = self.proc.communicate()
+        except Exception:
+            stdout, stderr = b'', b''
 
         if hasattr(self, 'log'):
             print(self.base_dir)
@@ -125,9 +114,11 @@ class ProcessBase(object):
         if log:
             print("{} ({}) stdout:\n{}".format(self, self.cmd_line, log))
         if stdout:
-            print("{} ({}) stdout:\n{}".format(self, self.cmd_line, stdout))
+            print("{} ({}) stdout:\n{}".format(self, self.cmd_line,
+                                               stdout.decode()))
         if stderr:
-            print("{} ({}) stdout:\n{}".format(self, self.cmd_line, stderr))
+            print("{} ({}) stdout:\n{}".format(self, self.cmd_line,
+                                               stderr.decode()))
 
 
 class MCProcess(ProcessBase):
@@ -137,7 +128,7 @@ class MCProcess(ProcessBase):
         self.fd = None
         if cmd is not None and '-s' in cmd:
             if os.path.exists(addr):
-                raise Exception('file path already existed')
+                raise Exception('file path {} already exists'.format(addr))
             self.addr = addr
             self.port = 0
             self.addr_family = socket.AF_UNIX
@@ -182,6 +173,9 @@ class MCProcess(ProcessBase):
     def getport(self):
         return self.port
 
+    def getsslport(self):
+        return None
+
     def connect(self):
         self.socket = socket.socket(self.addr_family, socket.SOCK_STREAM)
         self.socket.connect(self.addr)
@@ -224,14 +218,14 @@ class MCProcess(ProcessBase):
         if hasattr(self, 'socket'):
             self.disconnect()
 
-        self.dump()
-
         proc = self.proc
         if self.proc:
             if self.proc.returncode is None:
                 self.proc.terminate()
             self.proc.wait()
-            self.proc = None
+
+        self.dump()
+        self.proc = None
 
         return proc
 
@@ -277,7 +271,8 @@ class MCProcess(ProcessBase):
                 return line
             else:
                 self.connect()
-                raise Exception('Unexpected response "%s" (%s)' % (line, keys))
+                raise Exception(
+                    'Unexpected response "{}" ({})'.format(line, keys))
 
     def get(self, keys, return_all_info=False):
         return self._get('get', keys, expect_cas=False,
@@ -301,7 +296,7 @@ class MCProcess(ProcessBase):
         #    multi = False
         #    keys = [keys]
         res = {}
-        self._sendall("metaget %s\r\n" % keys)
+        self._sendall("metaget {}\r\n".format(keys))
 
         while True:
             line = self._fdreadline().strip()
@@ -318,7 +313,7 @@ class MCProcess(ProcessBase):
         if not isinstance(keys, list):
             multi = False
             keys = [keys]
-        self._sendall("lease-get %s\r\n" % " ".join(keys))
+        self._sendall("lease-get {}\r\n".format(" ".join(keys)))
         res = {key: None for key in keys}
 
         while True:
@@ -355,9 +350,18 @@ class MCProcess(ProcessBase):
              exptime=0, flags=0):
         value = str(value)
         flags = flags | (1024 if replicate else 0)
-        self._sendall("%s %s %d %d %d%s\r\n%s\r\n" %
-                      (command, key, flags, exptime, len(value),
-                      (' noreply' if noreply else ''), value))
+        self._sendall(
+            "{command} {key} {flags} {exptime} {size}{noreply}\r\n{value}\r\n"
+            .format(
+                command=command,
+                key=key,
+                flags=flags,
+                exptime=exptime,
+                size=len(value),
+                noreply=' noreply' if noreply else '',
+                value=value,
+            )
+        )
         if noreply:
             return self.expectNoReply()
 
@@ -372,8 +376,17 @@ class MCProcess(ProcessBase):
         value = str(value_token["value"])
         token = int(value_token["token"])
         flags = 0
-        cmd = "lease-set %s %d %d %d %d\r\n%s\r\n" % \
-                (key, token, flags, exptime, len(value), value)
+        cmd = (
+            "lease-set {key} {token} {flags} {exptime} {size}\r\n{value}\r\n"
+            .format(
+                key=key,
+                token=token,
+                flags=flags,
+                exptime=exptime,
+                size=len(value),
+                value=value,
+            )
+        )
         self._sendall(cmd)
 
         answer = self._fdreadline().strip()
@@ -431,8 +444,12 @@ class MCProcess(ProcessBase):
         return None
 
     def _arith(self, cmd, key, value, noreply):
-        self._sendall("%s %s %d%s\r\n" %
-                      (cmd, key, value, (' noreply' if noreply else '')))
+        self._sendall("{cmd} {key} {value}{noreply}\r\n".format(
+            cmd=cmd,
+            key=key,
+            value=value,
+            noreply=' noreply' if noreply else '',
+        ))
         if noreply:
             return self.expectNoReply()
 
@@ -449,9 +466,18 @@ class MCProcess(ProcessBase):
         return self._arith('decr', key, value, noreply)
 
     def _affix(self, cmd, key, value, noreply=False, flags=0, exptime=0):
-        self._sendall("%s %s %d %d %d%s\r\n%s\r\n" %
-                      (cmd, key, flags, exptime, len(value),
-                      (' noreply' if noreply else ''), value))
+        self._sendall(
+            "{cmd} {key} {flags} {exptime} {size}{noreply}\r\n{value}\r\n"
+            .format(
+                cmd=cmd,
+                key=key,
+                flags=flags,
+                exptime=exptime,
+                size=len(value),
+                noreply=' noreply' if noreply else '',
+                value=value,
+            )
+        )
 
         if noreply:
             return self.expectNoReply()
@@ -475,8 +501,12 @@ class MCProcess(ProcessBase):
 
     def cas(self, key, value, cas_token):
         value = str(value)
-        self._sendall("cas %s 0 0 %d %d\r\n%s\r\n" %
-                      (key, len(value), cas_token, value))
+        self._sendall("cas {key} 0 0 {size} {token}\r\n{value}\r\n".format(
+            key=key,
+            size=len(value),
+            token=cas_token,
+            value=value,
+        ))
 
         answer = self._fdreadline().strip()
         if re.search('ERROR', answer):
@@ -488,7 +518,7 @@ class MCProcess(ProcessBase):
     def stats(self, spec=None):
         q = 'stats\r\n'
         if spec:
-            q = 'stats {0}\r\n'.format(spec)
+            q = 'stats {spec}\r\n'.format(spec=spec)
         self._sendall(q)
 
         s = {}
@@ -509,7 +539,7 @@ class MCProcess(ProcessBase):
     def raw_stats(self, spec=None):
         q = 'stats\r\n'
         if spec:
-            q = 'stats {0}\r\n'.format(spec)
+            q = 'stats {spec}\r\n'.format(spec=spec)
         self._sendall(q)
 
         s = []
@@ -582,12 +612,13 @@ def sub_port(s, substitute_ports, port_map):
                     else:
                         if port not in substitute_ports:
                             raise Exception(
-                                "Port %s not in substitute port map" % port)
+                                "Port {} not in substitute port map"
+                                .format(port))
                         port_map[port] = substitute_ports[port]
                 else:
-                    raise Exception("Looking up port %d: config file has more"
-                                    " ports specified than the number of"
-                                    " mock servers started" % port)
+                    raise Exception("Looking up port {}: config file has more "
+                                    "ports specified than the number of "
+                                    "mock servers started".format(port))
             parts[i] = str(port_map[port])
         except (IndexError, ValueError):
             pass
@@ -674,16 +705,20 @@ class McrouterBase(MCProcess):
                      '--debug-fifo-root', self.debug_fifo_root])
 
         listen_sock = None
+        pass_fds = []
         if port is None:
             listen_sock = create_listen_socket()
             port = listen_sock.getsockname()[1]
-            args.extend(['--listen-sock-fd', str(listen_sock.fileno())])
+            listen_sock_fd = listen_sock.fileno()
+            args.extend(['--listen-sock-fd', str(listen_sock_fd)])
+            pass_fds.append(listen_sock_fd)
         else:
             args.extend(['-p', str(port)])
 
         args = McrouterGlobals.preprocessArgs(args)
 
-        MCProcess.__init__(self, args, port, base_dir, junk_fill=True)
+        MCProcess.__init__(self, args, port, base_dir, junk_fill=True,
+                           pass_fds=pass_fds)
 
         if listen_sock is not None:
             listen_sock.close()
@@ -698,7 +733,7 @@ class McrouterBase(MCProcess):
 class Mcrouter(McrouterBase):
     def __init__(self, config, port=None, default_route=None, extra_args=None,  # noqa: C901
                  base_dir=None, substitute_config_ports=None,
-                 substitute_port_map=None, replace_map=None):
+                 substitute_port_map=None, replace_map=None, flavor=None):
         if base_dir is None:
             base_dir = BaseDirectory('mcrouter')
 
@@ -719,8 +754,12 @@ class Mcrouter(McrouterBase):
                 config_file.write(replaced_config)
 
         self.config = config
-        args = [McrouterGlobals.binPath('mcrouter'),
-                '--config', 'file:' + config]
+        if (flavor):
+            args = [McrouterGlobals.binPath('mcrouter'), 'file:' + flavor,
+                    '--config', 'file:' + config]
+        else:
+            args = [McrouterGlobals.binPath('mcrouter'),
+                    '--config', 'file:' + config]
 
         if default_route:
             args.extend(['-R', default_route])
@@ -775,14 +814,17 @@ class MockMemcached(MCProcess):
     def __init__(self, port=None):
         args = [McrouterGlobals.binPath('mockmc')]
         listen_sock = None
+        pass_fds = []
         if port is None:
             listen_sock = create_listen_socket()
             port = listen_sock.getsockname()[1]
-            args.extend(['-t', str(listen_sock.fileno())])
+            listen_sock_fd = listen_sock.fileno()
+            args.extend(['-t', str(listen_sock_fd)])
+            pass_fds.append(listen_sock_fd)
         else:
             args.extend(['-P', str(port)])
 
-        MCProcess.__init__(self, args, port)
+        MCProcess.__init__(self, args, port, pass_fds=pass_fds)
 
         if listen_sock is not None:
             listen_sock.close()
@@ -792,34 +834,71 @@ class MockMemcachedThrift(MCProcess):
     def __init__(self, port=None):
         args = [McrouterGlobals.binPath('mockmcthrift')]
         listen_sock = None
+        pass_fds = []
         if port is None:
             listen_sock = create_listen_socket()
             port = listen_sock.getsockname()[1]
+            listen_sock_fd = listen_sock.fileno()
             args.extend(['-t', str(listen_sock.fileno())])
+            pass_fds.append(listen_sock_fd)
         else:
             args.extend(['-P', str(port)])
 
-        MCProcess.__init__(self, args, port)
+        MCProcess.__init__(self, args, port, pass_fds=pass_fds)
+
+        if listen_sock is not None:
+            listen_sock.close()
+
+
+class MockMemcachedDual(MCProcess):
+    def __init__(self, thriftPort=None, asyncPort=None):
+        args = [McrouterGlobals.binPath('mockmcdual')]
+        listen_sock = None
+        pass_fds = []
+        if thriftPort is None:
+            self.listenSocketThrift = create_listen_socket()
+            thriftPort = self.listenSocketThrift.getsockname()[1]
+            sock_fd = self.listenSocketThrift.fileno()
+            args.extend(['-t', str(sock_fd)])
+            pass_fds.append(sock_fd)
+        else:
+            args.extend(['-p', str(thriftPort)])
+
+        if asyncPort is None:
+            self.listenSocketAsyncMc = create_listen_socket()
+            asyncPort = self.listenSocketAsyncMc.getsockname()[1]
+            sock_fd = self.listenSocketAsyncMc.fileno()
+            args.extend(['-T', str(sock_fd)])
+            pass_fds.append(sock_fd)
+        else:
+            args.extend(['-P', str(asyncPort)])
+
+        MCProcess.__init__(self, args, asyncPort, pass_fds=pass_fds)
 
         if listen_sock is not None:
             listen_sock.close()
 
 
 class Memcached(MCProcess):
-    def __init__(self, port=None):
+    ssl_port = None
+
+    def __init__(self, port=None, ssl_port=None, extra_args=None):
         args = [McrouterGlobals.binPath('prodmc')]
         listen_sock = None
+        pass_fds = []
 
         # if mockmc is used here, we initialize the same way as MockMemcached
         if McrouterGlobals.binPath('mockmc') == args[0]:
             if port is None:
                 listen_sock = create_listen_socket()
                 port = listen_sock.getsockname()[1]
-                args.extend(['-t', str(listen_sock.fileno())])
+                listen_sock_fd = listen_sock.fileno()
+                args.extend(['-t', str(listen_sock_fd)])
+                pass_fds.append(listen_sock_fd)
             else:
                 args.extend(['-P', str(port)])
 
-            MCProcess.__init__(self, args, port)
+            MCProcess.__init__(self, args, port, pass_fds=pass_fds)
 
             if listen_sock is not None:
                 listen_sock.close()
@@ -832,15 +911,24 @@ class Memcached(MCProcess):
                 '--enable_unchecked_l1_sentinel_reads',
                 '--reaper_throttle=100',
                 '--ini_hashpower=16',
+                '--num_listening_sockets=1',
             ])
+            if (extra_args):
+                args.extend(extra_args)
             if port is None:
                 listen_sock = create_listen_socket()
                 port = listen_sock.getsockname()[1]
-                args.extend(['--listen_sock_fd', str(listen_sock.fileno())])
+                listen_sock_fd = listen_sock.fileno()
+                args.extend(['--listen_sock_fd', str(listen_sock_fd)])
+                pass_fds.append(listen_sock_fd)
             else:
                 args.extend(['-p', str(port)])
 
-            MCProcess.__init__(self, args, port)
+            if ssl_port:
+                self.ssl_port = ssl_port
+                args.extend(['--ssl_port', str(self.ssl_port)])
+
+            MCProcess.__init__(self, args, port, pass_fds=pass_fds)
 
             if listen_sock is not None:
                 listen_sock.close()
@@ -858,6 +946,9 @@ class Memcached(MCProcess):
                 tries -= 1
             self.disconnect()
 
+    def getsslport(self):
+        return self.ssl_port
+
 
 class Mcpiper(ProcessBase):
     def __init__(self, fifos_dir, extra_args=None):
@@ -867,11 +958,13 @@ class Mcpiper(ProcessBase):
         if extra_args:
             args.extend(extra_args)
 
-        ProcessBase.__init__(self, args, base_dir)
+        super().__init__(args, base_dir)
 
     def output(self):
-        with open(self.stdout, 'r') as stdout_f:
-            return stdout_f.read().decode('ascii', errors='ignore')
+        if not hasattr(self, 'stdout'):
+            self.proc.terminate()
+            self.stdout = self.proc.stdout.read().decode('ascii', errors='ignore')
+        return self.stdout
 
     def contains(self, needle):
         return needle in self.output()

@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #include "CompressionCodecManager.h"
 
 #include <algorithm>
@@ -58,7 +59,7 @@ CompressionCodecManager::CompressionCodecManager(
           config->filteringOptions,
           config->compressionLevel);
       largestId = std::max<int64_t>(largestId, codecId);
-    } catch (const std::exception& e) {
+    } catch (const std::exception&) {
       badCodecConfigs.push_back(codecId);
       LOG(ERROR) << "Compression codec config [" << codecId << "] is invalid.";
     }

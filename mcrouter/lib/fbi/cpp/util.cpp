@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #include "util.h"
 
 #include <assert.h>
@@ -126,9 +127,9 @@ bool atomicallyWriteFileToDisk(
 
     boost::filesystem::rename(tempFilePath, filePath);
     return true;
-  } catch (const boost::filesystem::filesystem_error& e) {
+  } catch (const boost::filesystem::filesystem_error&) {
     return false;
-  } catch (const boost::system::system_error& e) {
+  } catch (const boost::system::system_error&) {
     return false;
   }
 }

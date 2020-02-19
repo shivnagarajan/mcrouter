@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <atomic>
@@ -23,6 +24,7 @@
 #include "mcrouter/Observable.h"
 #include "mcrouter/PoolStats.h"
 #include "mcrouter/TkoTracker.h"
+#include "mcrouter/lib/network/Transport.h"
 #include "mcrouter/options.h"
 
 namespace facebook {
@@ -55,6 +57,8 @@ using LogPostprocessCallbackFunc = std::function<void(
 
 class CarbonRouterInstanceBase {
  public:
+  using SvcIdentAuthCallbackFunc = Transport::SvcIdentAuthCallbackFunc;
+
   explicit CarbonRouterInstanceBase(McrouterOptions inputOptions);
   virtual ~CarbonRouterInstanceBase() = default;
 
@@ -121,6 +125,14 @@ class CarbonRouterInstanceBase {
     postprocessCallback_ = std::move(newCallback);
   }
 
+  const SvcIdentAuthCallbackFunc& svcIdentAuthCallbackFunc() const {
+    return svcIdentAuthCallback_;
+  }
+
+  void setSvcIdentAuthCallbackFunc(SvcIdentAuthCallbackFunc&& newCallback) {
+    svcIdentAuthCallback_ = std::move(newCallback);
+  }
+
   /**
    * Returns an AsyncWriter for mission critical work (use statsLogWriter() for
    * auxiliary / low priority work).
@@ -185,6 +197,11 @@ class CarbonRouterInstanceBase {
    */
   std::shared_ptr<folly::FunctionScheduler> functionScheduler();
 
+  /**
+   * Returns name of router e.g. Memcache"
+   */
+  virtual folly::StringPiece routerInfoName() const = 0;
+
  protected:
   /**
    * Register this instance for periodic stats updates.
@@ -201,6 +218,7 @@ class CarbonRouterInstanceBase {
   const std::unique_ptr<ConfigApi> configApi_;
 
   LogPostprocessCallbackFunc postprocessCallback_;
+  SvcIdentAuthCallbackFunc svcIdentAuthCallback_;
 
   // These next four fields are used for stats
   uint64_t startTime_{0};

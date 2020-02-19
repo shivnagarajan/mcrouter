@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <sys/uio.h>
@@ -245,9 +246,10 @@ class CarbonQueueAppenderStorage {
  * We have our own version of QueueAppender in order to support more efficient
  * memory management for mcrouter's use case.
  */
+template <class TS = CarbonQueueAppenderStorage>
 class CarbonQueueAppender {
  public:
-  CarbonQueueAppender(CarbonQueueAppenderStorage* storage, uint64_t unused) {
+  CarbonQueueAppender(TS* storage, uint64_t unused) {
     reset(storage, unused);
   }
 
@@ -267,7 +269,7 @@ class CarbonQueueAppender {
     write(folly::Endian::little(value));
   }
 
-  void reset(CarbonQueueAppenderStorage* storage, uint64_t /* unused */) {
+  void reset(TS* storage, uint64_t /* unused */) {
     storage_ = storage;
   }
 
@@ -290,7 +292,7 @@ class CarbonQueueAppender {
   }
 
  private:
-  CarbonQueueAppenderStorage* storage_{nullptr};
+  TS* storage_{nullptr};
 };
 
 } // namespace carbon

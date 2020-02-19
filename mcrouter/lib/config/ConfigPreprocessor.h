@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <functional>
@@ -43,7 +44,7 @@ class ConfigPreprocessor {
       folly::StringPiece jsonC,
       ImportResolverIf& importResolver,
       folly::StringKeyedUnorderedMap<folly::dynamic> globalParams,
-      folly::json::metadata_map* configMetadataMap = nullptr,
+      folly::json::metadata_map* configMetadataMap,
       size_t nestedLimit = 250);
 
  private:

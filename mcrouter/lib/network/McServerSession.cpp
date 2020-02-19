@@ -1,14 +1,17 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #include "McServerSession.h"
 
 #include <memory>
 
+#include <folly/Executor.h>
 #include <folly/io/async/AsyncSSLSocket.h>
+#include <folly/io/async/VirtualEventBase.h>
 #include <folly/small_vector.h>
 
 #include "mcrouter/lib/debug/FifoManager.h"
@@ -48,14 +51,16 @@ McServerSession& McServerSession::create(
     const AsyncMcServerWorkerOptions& options,
     void* userCtxt,
     McServerSession::Queue* queue,
-    const CompressionCodecMap* codecMap) {
+    const CompressionCodecMap* codecMap,
+    KeepAlive keepAlive) {
   auto ptr = new McServerSession(
       std::move(transport),
       std::move(cb),
       stateCb,
       options,
       userCtxt,
-      codecMap);
+      codecMap,
+      keepAlive);
 
   assert(ptr->state_ == STREAMING);
   DestructorGuard dg(ptr);
@@ -88,6 +93,12 @@ void McServerSession::applySocketOptions(
     socket.setZeroCopy(true);
   }
   socket.setSendTimeout(opts.sendTimeout.count());
+  if (opts.trafficClass > 0) {
+    if (socket.setSockOpt(IPPROTO_IPV6, IPV6_TCLASS, &opts.trafficClass) != 0) {
+      LOG_EVERY_N(ERROR, 1000) << "Failed to set TCLASS = " << opts.trafficClass
+                               << " on socket. errno: " << errno;
+    }
+  }
 }
 
 McServerSession::McServerSession(
@@ -96,10 +107,12 @@ McServerSession::McServerSession(
     StateCallback& stateCb,
     const AsyncMcServerWorkerOptions& options,
     void* userCtxt,
-    const CompressionCodecMap* codecMap)
+    const CompressionCodecMap* codecMap,
+    KeepAlive keepAlive)
     : options_(options),
       transport_(std::move(transport)),
       eventBase_(*transport_->getEventBase()),
+      keepAlive_(std::move(keepAlive)),
       onRequest_(std::move(cb)),
       stateCb_(stateCb),
       sendWritesCallback_(*this),
@@ -360,7 +373,7 @@ void McServerSession::caretRequestReady(
   } else {
     try {
       onRequest_->caretRequestReady(headerInfo, reqBody, std::move(ctx));
-    } catch (const std::exception& e) {
+    } catch (const std::exception&) {
       // Ideally, ctx would be created after successful parsing of Caret data.
       // For now, if ctx hasn't been moved out of, mark as replied.
       ctx.replied_ = true;

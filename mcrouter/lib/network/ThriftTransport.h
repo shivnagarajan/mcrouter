@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <chrono>
@@ -14,7 +15,7 @@
 #include <folly/Range.h>
 #include <folly/io/async/AsyncTransport.h>
 #include <folly/io/async/VirtualEventBase.h>
-#include <thrift/lib/cpp/async/TAsyncTransport.h>
+#include <thrift/lib/cpp2/async/RequestCallback.h>
 #include <thrift/lib/cpp2/async/RequestChannel.h>
 #include <thrift/lib/cpp2/async/RocketClientChannel.h>
 
@@ -37,9 +38,7 @@ class ThriftTransportBase : public Transport,
                             private folly::AsyncSocket::ConnectCallback,
                             private apache::thrift::CloseCallback {
  public:
-  ThriftTransportBase(
-      folly::VirtualEventBase& eventBase,
-      ConnectionOptions options);
+  ThriftTransportBase(folly::EventBase& eventBase, ConnectionOptions options);
   virtual ~ThriftTransportBase() override = default;
 
   static constexpr folly::StringPiece name() {
@@ -58,6 +57,9 @@ class ThriftTransportBase : public Transport,
   void setRequestStatusCallbacks(
       RequestStatusCallbacks callbacks) override final;
 
+  void setAuthorizationCallbacks(
+      AuthorizationCallbacks callbacks) override final;
+
   void setThrottle(size_t maxInflight, size_t maxPending) override final;
 
   RequestQueueStats getRequestQueueStats() const override final;
@@ -73,10 +75,12 @@ class ThriftTransportBase : public Transport,
  protected:
   folly::EventBase& eventBase_;
   const ConnectionOptions connectionOptions_;
+  std::shared_ptr<apache::thrift::RocketClientChannel> channel_;
 
   // Callbacks
   ConnectionStatusCallbacks connectionCallbacks_;
   RequestStatusCallbacks requestCallbacks_;
+  AuthorizationCallbacks authorizationCallbacks_;
 
   // Throttle options (disabled by default).
   size_t maxInflight_{0};
@@ -89,8 +93,8 @@ class ThriftTransportBase : public Transport,
   template <class ThriftClient>
   std::unique_ptr<ThriftClient> createThriftClient();
 
-  apache::thrift::RpcOptions getRpcOptions(
-      std::chrono::milliseconds timeout) const;
+  static apache::thrift::RpcOptions getRpcOptions(
+      std::chrono::milliseconds timeout);
 
   /**
    * Resets the client pointer.
@@ -99,7 +103,7 @@ class ThriftTransportBase : public Transport,
   virtual void resetClient() = 0;
 
   template <class F>
-  std::result_of_t<F()> sendSyncImpl(F&& sendFunc);
+  auto sendSyncImpl(F&& sendFunc);
 
  private:
   // AsyncSocket::ConnectCallback overrides
@@ -120,15 +124,15 @@ class ThriftTransportBase : public Transport,
    * Returns either valid connection (or possibly connected) socket, or nullptr
    * in case of error.
    */
-  apache::thrift::async::TAsyncTransport::UniquePtr getConnectingSocket();
+  folly::AsyncTransportWrapper::UniquePtr getConnectingSocket();
 };
 
 template <class RouterInfo>
 class ThriftTransport : public ThriftTransportBase {
  public:
   ThriftTransport(folly::VirtualEventBase& eventBase, ConnectionOptions options)
-      : ThriftTransportBase(eventBase, std::move(options)) {}
-  ~ThriftTransport() override final = default;
+      : ThriftTransportBase(eventBase.getEventBase(), std::move(options)) {}
+  ~ThriftTransport() override = default;
 
   template <class Request>
   ReplyT<Request> sendSync(

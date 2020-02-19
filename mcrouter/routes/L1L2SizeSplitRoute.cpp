@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #include "L1L2SizeSplitRoute.h"
 
 #include <limits>
@@ -259,13 +260,28 @@ std::shared_ptr<MemcacheRouteHandleIf> makeL1L2SizeSplitRoute(
     bothFullSet = json["both_full_set"].getBool();
   }
 
+  uint32_t numRetries = L1L2SizeSplitRoute::kDefaultNumRetries;
+  if (json.count("retries")) {
+    checkLogic(
+        json["retries"].isInt(),
+        "L1L2SizeSplitRoute: number of retries is not an integer");
+    numRetries = json["retries"].getInt();
+    checkLogic(
+        numRetries > 0, "L1L2SizeSplitRoute: number of retries must be > 0");
+    checkLogic(
+        numRetries <= L1L2SizeSplitRoute::kMaxNumRetries,
+        "L1L2SizeSplitRoute: maximum number of retries is " +
+            std::to_string(L1L2SizeSplitRoute::kMaxNumRetries));
+  }
+
   return std::make_shared<MemcacheRouteHandle<L1L2SizeSplitRoute>>(
       factory.create(json["l1"]),
       factory.create(json["l2"]),
       threshold,
       ttlThreshold,
       failureTtl,
-      bothFullSet);
+      bothFullSet,
+      numRetries);
 }
 
 constexpr folly::StringPiece L1L2SizeSplitRoute::kHashAlias;

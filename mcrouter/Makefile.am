@@ -58,6 +58,8 @@ libmcroutercore_a_SOURCES = \
   McrouterLogFailure.h \
   McrouterLogger.cpp \
   McrouterLogger.h \
+  McrouterManager.cpp\
+  McrouterManager.h\
   Observable-inl.h \
   Observable.h \
   options-template.h \
@@ -80,6 +82,8 @@ libmcroutercore_a_SOURCES = \
   ProxyDestination.h \
   ProxyDestinationBase.cpp \
   ProxyDestinationBase.h \
+	ProxyDestinationKey.cpp \
+  ProxyDestinationKey.h \
   ProxyDestinationMap-inl.h \
   ProxyDestinationMap.cpp \
   ProxyDestinationMap.h \
@@ -224,6 +228,7 @@ mcrouter_LDADD = \
   -lconcurrency \
   -lprotocol \
   -lthrift-core \
+	-lfmt \
   -lwangle \
   -lfolly
 

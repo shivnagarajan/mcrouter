@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <memory>
@@ -145,7 +146,7 @@ class L1L2CacheRoute {
     req.value() = folly::IOBuf(folly::IOBuf::COPY_BUFFER, "ncache");
     req.flags() = MC_MSG_FLAG_NEGATIVE_CACHE;
     req.exptime() = ncacheExptime;
-    return std::move(req);
+    return req;
   }
 
   template <class Request>

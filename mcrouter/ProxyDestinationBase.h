@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <array>
@@ -64,9 +65,8 @@ class ProxyDestinationBase {
       ProxyBase& proxy,
       std::shared_ptr<const AccessPoint> ap,
       std::chrono::milliseconds timeout,
-      uint64_t qosClass,
-      uint64_t qosPath,
-      folly::StringPiece routerInfoName);
+      uint32_t qosClass,
+      uint32_t qosPath);
   virtual ~ProxyDestinationBase();
 
   /**
@@ -121,17 +121,6 @@ class ProxyDestinationBase {
   void setPoolStatsIndex(int32_t index);
   void updatePoolStatConnections(bool connected);
 
-  /**
-   * Sets the key for this proxy destination. This proxy destination will only
-   * store the StringPiece, so the string has to be kept alive by the caller.
-   */
-  void setKey(folly::StringPiece key) {
-    key_ = key;
-  }
-  folly::StringPiece key() const {
-    return key_;
-  }
-
   virtual RequestQueueStats getRequestStats() const = 0;
 
   /**
@@ -162,14 +151,11 @@ class ProxyDestinationBase {
   std::chrono::milliseconds shortestWriteTimeout() const {
     return shortestWriteTimeout_;
   }
-  uint64_t qosClass() const {
+  uint32_t qosClass() const {
     return qosClass_;
   }
-  uint64_t qosPath() const {
+  uint32_t qosPath() const {
     return qosPath_;
-  }
-  folly::StringPiece routerInfoName() const {
-    return routerInfoName_;
   }
   bool probeInflight() const {
     return probeInflight_;
@@ -183,9 +169,8 @@ class ProxyDestinationBase {
   const std::shared_ptr<const AccessPoint> accessPoint_;
   std::chrono::milliseconds shortestConnectTimeout_{0};
   std::chrono::milliseconds shortestWriteTimeout_{0};
-  const uint64_t qosClass_{0};
-  const uint64_t qosPath_{0};
-  const folly::StringPiece routerInfoName_;
+  const uint32_t qosClass_{0};
+  const uint32_t qosPath_{0};
 
   Stats stats_;
 
@@ -193,9 +178,6 @@ class ProxyDestinationBase {
   std::unique_ptr<folly::AsyncTimeout> probeTimer_;
   int probeDelayNextMs{0};
   bool probeInflight_{false};
-
-  // The string is stored in ProxyDestinationMap::destinations_
-  folly::StringPiece key_; ///< consists of AccessPoint, and timeout
 
   void* stateList_{nullptr};
   folly::IntrusiveListHook stateListHook_;
@@ -208,6 +190,7 @@ class ProxyDestinationBase {
 
   void onTransitionImpl(State state, bool to);
 
+  friend struct ProxyDestinationKey;
   friend class ProxyDestinationMap;
 };
 

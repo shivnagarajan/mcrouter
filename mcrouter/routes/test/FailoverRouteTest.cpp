@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #include <memory>
 #include <vector>
 
@@ -16,6 +17,7 @@
 #include "mcrouter/lib/test/TestRouteHandle.h"
 #include "mcrouter/routes/FailoverRateLimiter.h"
 #include "mcrouter/routes/FailoverRoute.h"
+#include "mcrouter/routes/HashRouteFactory.h"
 #include "mcrouter/routes/McrouterRouteHandle.h"
 #include "mcrouter/routes/test/RouteHandleTestUtil.h"
 
@@ -44,9 +46,9 @@ McrouterRouteHandlePtr makeFailoverRouteInOrder(
       std::move(name),
       nullptr);
 }
-}
-}
-} // facebook::memcache::mcrouter
+} // namespace mcrouter
+} // namespace memcache
+} // namespace facebook
 
 TEST(failoverRouteTest, nofailover) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
@@ -298,6 +300,32 @@ TEST(failoverRouteTest, rateLimit) {
   EXPECT_EQ(carbon::Result::TIMEOUT, reply4.result());
 }
 
+TEST(failoverRouteTest, rateLimitWithTKO) {
+  std::vector<std::shared_ptr<TestHandle>> test_handles{
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TKO, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "c"))};
+
+  mockFiberContext();
+  auto rh = makeFailoverRouteInOrder(
+      get_route_handles(test_handles),
+      FailoverErrorsSettings(),
+      std::make_unique<FailoverRateLimiter>(0.5, 1),
+      /* failoverTagging */ false);
+
+  // tokens: 1
+  auto reply1 = rh->route(McGetRequest("0"));
+  EXPECT_EQ(carbon::Result::FOUND, reply1.result());
+  // tokens: 0
+  auto reply2 = rh->route(McGetRequest("0"));
+  EXPECT_EQ(carbon::Result::FOUND, reply2.result());
+  // tokens: 0.5
+  auto reply3 = rh->route(McGetRequest("0"));
+  EXPECT_EQ(carbon::Result::FOUND, reply3.result());
+  // tokens: 0
+  auto reply4 = rh->route(McGetRequest("0"));
+  EXPECT_EQ(carbon::Result::FOUND, reply4.result());
+}
+
 TEST(failoverRouteTest, leastFailuresNoFailover) {
   std::vector<std::shared_ptr<TestHandle>> test_handles{
       make_shared<TestHandle>(GetRouteTestData(carbon::Result::FOUND, "a")),
@@ -540,4 +568,118 @@ TEST(failoverRouteTest, leastFailuresComplex) {
 
   auto reply7 = rh->route(McGetRequest("0"));
   EXPECT_EQ("c", carbon::valueRangeSlow(reply7).str());
+}
+
+TEST(failoverRouteTest, deterministicOrderTimeout) {
+  std::vector<std::shared_ptr<TestHandle>> test_handles{
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "c")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TIMEOUT, "d"))};
+
+  mockFiberContext();
+  folly::dynamic policyJson = folly::dynamic::object(
+      "type", "DeterministicOrderPolicy")("max_tries", 4)("max_error_tries", 2);
+  folly::dynamic json = folly::dynamic::object("failover_policy", policyJson);
+  auto rh = makeFailoverRouteDefault<McrouterRouterInfo, FailoverRoute>(
+      json, get_route_handles(test_handles));
+
+  rh->route(McGetRequest("0"));
+  // The request should reach 2 children
+  int numRetries = 0;
+  for (auto testHdl : test_handles) {
+    if (!testHdl->saw_keys.empty()) {
+      ++numRetries;
+    }
+  }
+  // Limited by max_error_tries to 2.
+  EXPECT_EQ(2, numRetries);
+}
+
+TEST(failoverRouteTest, deterministicOrderTko) {
+  std::vector<std::shared_ptr<TestHandle>> test_handles{
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TKO, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TKO, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TKO, "c")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TKO, "d")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TKO, "e"))};
+
+  mockFiberContext();
+  folly::dynamic policyJson = folly::dynamic::object(
+      "type", "DeterministicOrderPolicy")("max_tries", 4)("max_error_tries", 2);
+  folly::dynamic json = folly::dynamic::object("failover_policy", policyJson);
+  auto rh = makeFailoverRouteDefault<McrouterRouterInfo, FailoverRoute>(
+      json, get_route_handles(test_handles));
+
+  rh->route(McGetRequest("0"));
+  // The request should reach 2 children
+  int numRetries = 0;
+  for (auto testHdl : test_handles) {
+    if (!testHdl->saw_keys.empty()) {
+      ++numRetries;
+    }
+  }
+  // Since TKOs are excluded from max_error_tries, we'll end up trying 4 of the
+  // 5 retry destinations.
+  EXPECT_EQ(4, numRetries);
+}
+
+TEST(failoverRouteTest, deterministicOrderNoDoubleShot) {
+  std::vector<std::shared_ptr<TestHandle>> test_handles{
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TKO, "a")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TKO, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TKO, "c"))};
+
+  mockFiberContext();
+  auto failover_children = get_route_handles(test_handles);
+  auto nServers = test_handles.size();
+  failover_children.insert(
+      failover_children.begin(),
+      createHashRoute<McrouterRouterInfo, Ch3HashFunc>(
+          get_route_handles(test_handles),
+          "", /* no salt */
+          Ch3HashFunc(nServers)));
+  folly::dynamic policyJson =
+      folly::dynamic::object("type", "DeterministicOrderPolicy")(
+          "max_tries", nServers)("max_error_tries", nServers);
+  folly::dynamic json = folly::dynamic::object("failover_policy", policyJson);
+  auto rh = makeFailoverRouteDefault<McrouterRouterInfo, FailoverRoute>(
+      json, failover_children);
+  rh->route(McGetRequest("noDoubleShot"));
+  for (auto testHdl : test_handles) {
+    if (!testHdl->saw_keys.empty()) {
+      --nServers;
+    }
+  }
+  // If all test_handles are reached, no test_handle is hit twice
+  EXPECT_EQ(0, nServers);
+}
+
+TEST(failoverRouteTest, ignoreTkoAndHardTko) {
+  std::vector<std::shared_ptr<TestHandle>> test_handles{
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TKO, "a")),
+      // hard TKO
+      make_shared<TestHandle>(
+          GetRouteTestData(carbon::Result::CONNECT_ERROR, "b")),
+      make_shared<TestHandle>(GetRouteTestData(carbon::Result::TKO, "c")),
+      // hard TKO
+      make_shared<TestHandle>(
+          GetRouteTestData(carbon::Result::CONNECT_ERROR, "d"))};
+  mockFiberContext();
+  folly::dynamic policyJson = folly::dynamic::object(
+      "type", "DeterministicOrderPolicy")("max_tries", 3)("max_error_tries", 2);
+  folly::dynamic json = folly::dynamic::object("failover_policy", policyJson);
+  auto rh = makeFailoverRouteDefault<McrouterRouterInfo, FailoverRoute>(
+      json, get_route_handles(test_handles));
+  rh->route(McGetRequest("0"));
+  // The request should reach 2 children
+  int numRetries = 0;
+  for (auto testHdl : test_handles) {
+    if (!testHdl->saw_keys.empty()) {
+      ++numRetries;
+    }
+  }
+  // Since TKOs and hard TKOs are excluded from max_error_tries, we'll end up
+  // trying 3 of the 4 retry destinations, bounded by max_tries = 3
+  EXPECT_EQ(3, numRetries);
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #include "McRouteHandleProvider.h"
 
 #include "mcrouter/lib/network/gen/MemcacheRouterInfo.h"
@@ -36,6 +37,7 @@
 #include "mcrouter/routes/OperationSelectorRoute.h"
 #include "mcrouter/routes/OutstandingLimitRoute.h"
 #include "mcrouter/routes/RandomRouteFactory.h"
+#include "mcrouter/routes/RoutingGroupRoute.h"
 #include "mcrouter/routes/ShadowRoute.h"
 #include "mcrouter/routes/StagingRoute.h"
 
@@ -143,6 +145,7 @@ McRouteHandleProvider<MemcacheRouterInfo>::buildRouteMap() {
        [](McRouteHandleFactory& factory, const folly::dynamic& json) {
          return makeRateLimitRoute(factory, json);
        }},
+      {"RoutingGroupRoute", &makeRoutingGroupRoute<MemcacheRouterInfo>},
       {"StagingRoute", &makeStagingRoute},
       {"WarmUpRoute", &makeWarmUpRoute},
   };

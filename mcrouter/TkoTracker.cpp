@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #include "TkoTracker.h"
 
 #include <cassert>
@@ -46,6 +47,7 @@ void TkoTracker::incrementSoftTkoCount() {
 void TkoTracker::decrementSoftTkoCount() {
   // Decrement the counter and ensure we haven't gone below 0
   size_t oldSoftTkos = trackerMap_.globalTkos_.softTkos.fetch_sub(1);
+  (void)oldSoftTkos;
   assert(oldSoftTkos != 0);
 }
 

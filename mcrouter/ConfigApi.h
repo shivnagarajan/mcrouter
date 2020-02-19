@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <atomic>
@@ -19,7 +20,8 @@
 
 namespace folly {
 struct dynamic;
-} // folly
+class Executor;
+} // namespace folly
 
 namespace facebook {
 namespace memcache {
@@ -96,6 +98,13 @@ class ConfigApi : public ConfigApiIf {
   virtual void startObserving();
 
   /**
+   * Allow disabling of security config parsing
+   */
+  virtual bool enableSecurityConfig() const {
+    return true;
+  }
+
+  /**
    * Stops observing for file changes
    */
   virtual void stopObserving(pid_t pid) noexcept;
@@ -144,7 +153,7 @@ class ConfigApi : public ConfigApiIf {
   void dumpConfigSourceToDisk(
       const std::string& sourcePrefix,
       const std::string& name,
-      const std::string& contents,
+      std::string contents,
       const std::string& md5OrVersion);
 
   /**
@@ -195,14 +204,13 @@ class ConfigApi : public ConfigApiIf {
 
   bool isFirstConfig_{true};
 
-  const bool dumpConfigToDisk_{false};
+  std::unique_ptr<folly::Executor> dumpConfigToDiskExecutor_;
   bool readFromBackupFiles_{false};
-  bool lastConfigFromBackupFiles_{false};
 
   void configThreadRun();
 
   bool readFile(const std::string& path, std::string& contents);
 };
-}
-}
-} // facebook::memcache::mcrouter
+} // namespace mcrouter
+} // namespace memcache
+} // namespace facebook

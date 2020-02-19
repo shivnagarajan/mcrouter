@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #include <memory>
 
 #include <folly/Conv.h>
@@ -177,8 +178,8 @@ McRouteHandleProvider<RouterInfo>::makePool(
       keepRoutingPrefix = parseBool(*jKeepRoutingPrefix, "keep_routing_prefix");
     }
 
-    uint64_t qosClass = opts.default_qos_class;
-    uint64_t qosPath = opts.default_qos_path;
+    uint32_t qosClass = opts.default_qos_class;
+    uint32_t qosPath = opts.default_qos_path;
     if (auto jQos = json.get_ptr("qos")) {
       checkLogic(jQos->isObject(), "qos must be an object.");
       if (auto jClass = jQos->get_ptr("class")) {
@@ -190,43 +191,45 @@ McRouteHandleProvider<RouterInfo>::makePool(
     }
 
     SecurityMech mech = SecurityMech::NONE;
-    if (auto jSecurityMech = json.get_ptr("security_mech")) {
-      auto mechStr = parseString(*jSecurityMech, "security_mech");
-      mech = parseSecurityMech(mechStr);
-    } else if (auto jUseSsl = json.get_ptr("use_ssl")) {
-      // deprecated - prefer security_mech
-      auto useSsl = parseBool(*jUseSsl, "use_ssl");
-      if (useSsl) {
-        mech = SecurityMech::TLS;
-      }
-    }
-
     folly::Optional<SecurityMech> withinDcMech;
-    if (auto jSecurityMech = json.get_ptr("security_mech_within_dc")) {
-      auto mechStr = parseString(*jSecurityMech, "security_mech_within_dc");
-      withinDcMech = parseSecurityMech(mechStr);
-    }
-
     folly::Optional<SecurityMech> crossDcMech;
-    if (auto jSecurityMech = json.get_ptr("security_mech_cross_dc")) {
-      auto mechStr = parseString(*jSecurityMech, "security_mech_cross_dc");
-      crossDcMech = parseSecurityMech(mechStr);
-    }
-
-    folly::Optional<uint16_t> withinDcPort;
-    if (auto jPort = json.get_ptr("port_override_within_dc")) {
-      withinDcPort = parseInt(*jPort, "port_override_within_dc", 1, 65535);
-    }
-
     folly::Optional<uint16_t> crossDcPort;
-    if (auto jPort = json.get_ptr("port_override_cross_dc")) {
-      crossDcPort = parseInt(*jPort, "port_override_cross_dc", 1, 65535);
-    }
-
+    folly::Optional<uint16_t> withinDcPort;
     // default to 0, which doesn't override
     uint16_t port = 0;
-    if (auto jPort = json.get_ptr("port_override")) {
-      port = parseInt(*jPort, "port_override", 1, 65535);
+    if (proxy_.router().configApi().enableSecurityConfig()) {
+      if (auto jSecurityMech = json.get_ptr("security_mech")) {
+        auto mechStr = parseString(*jSecurityMech, "security_mech");
+        mech = parseSecurityMech(mechStr);
+      } else if (auto jUseSsl = json.get_ptr("use_ssl")) {
+        // deprecated - prefer security_mech
+        auto useSsl = parseBool(*jUseSsl, "use_ssl");
+        if (useSsl) {
+          mech = SecurityMech::TLS;
+        }
+      }
+
+      if (auto jSecurityMech = json.get_ptr("security_mech_within_dc")) {
+        auto mechStr = parseString(*jSecurityMech, "security_mech_within_dc");
+        withinDcMech = parseSecurityMech(mechStr);
+      }
+
+      if (auto jSecurityMech = json.get_ptr("security_mech_cross_dc")) {
+        auto mechStr = parseString(*jSecurityMech, "security_mech_cross_dc");
+        crossDcMech = parseSecurityMech(mechStr);
+      }
+
+      if (auto jPort = json.get_ptr("port_override_within_dc")) {
+        withinDcPort = parseInt(*jPort, "port_override_within_dc", 1, 65535);
+      }
+
+      if (auto jPort = json.get_ptr("port_override_cross_dc")) {
+        crossDcPort = parseInt(*jPort, "port_override_cross_dc", 1, 65535);
+      }
+
+      if (auto jPort = json.get_ptr("port_override")) {
+        port = parseInt(*jPort, "port_override", 1, 65535);
+      }
     }
     // servers
     auto jservers = json.get_ptr("servers");
@@ -304,8 +307,13 @@ McRouteHandleProvider<RouterInfo>::makePool(
 
       if (ap->getProtocol() == mc_thrift_protocol) {
         checkLogic(
-            ap->getSecurityMech() == SecurityMech::NONE,
-            "mcrouter ThriftTransport currently only supports plaintext");
+            ap->getSecurityMech() == SecurityMech::NONE ||
+                ap->getSecurityMech() == SecurityMech::TLS ||
+                ap->getSecurityMech() == SecurityMech::TLS13_FIZZ ||
+                ap->getSecurityMech() == SecurityMech::TLS_TO_PLAINTEXT,
+            "Security mechanism must be 'plain', 'tls', 'fizz' or "
+            "'tls_to_plain' for ThriftTransport, got {}",
+            securityMechToString(ap->getSecurityMech()));
 
         using Transport = ThriftTransport<RouterInfo>;
         destinations.push_back(createDestinationRoute<Transport>(
@@ -347,17 +355,14 @@ McRouteHandleProvider<RouterInfo>::createDestinationRoute(
     std::shared_ptr<AccessPoint> ap,
     std::chrono::milliseconds timeout,
     std::chrono::milliseconds connectTimeout,
-    uint64_t qosClass,
-    uint64_t qosPath,
+    uint32_t qosClass,
+    uint32_t qosPath,
     folly::StringPiece poolName,
     size_t indexInPool,
     int32_t poolStatIndex,
     bool keepRoutingPrefix) {
-  auto pdstn = proxy_.destinationMap()->template find<Transport>(*ap, timeout);
-  if (!pdstn) {
-    pdstn = proxy_.destinationMap()->template emplace<Transport>(
-        std::move(ap), timeout, qosClass, qosPath, RouterInfo::name);
-  }
+  auto pdstn = proxy_.destinationMap()->template emplace<Transport>(
+      std::move(ap), timeout, qosClass, qosPath);
   pdstn->updateShortestTimeout(connectTimeout, timeout);
 
   return makeDestinationRoute<RouterInfo, Transport>(
@@ -431,9 +436,11 @@ McRouteHandleProvider<RouterInfo>::makePoolRoute(
       if (auto jrates = json.get_ptr("rates")) {
         route = createRateLimitRoute(std::move(route), RateLimiter(*jrates));
       }
-      if (auto jsplits = json.get_ptr("shard_splits")) {
-        route = makeShardSplitRoute<RouterInfo>(
-            std::move(route), ShardSplitter(*jsplits));
+      if (!(proxy_.router().opts().disable_shard_split_route)) {
+        if (auto jsplits = json.get_ptr("shard_splits")) {
+          route = makeShardSplitRoute<RouterInfo>(
+              std::move(route), ShardSplitter(*jsplits));
+        }
       }
       if (auto jasynclog = json.get_ptr("asynclog")) {
         needAsynclog = parseBool(*jasynclog, "asynclog");
@@ -500,6 +507,47 @@ McRouteHandleProvider<RouterInfo>::create(
     return makePool(factory, poolFactory_.parsePool(json));
   } else if (type == "ShadowRoute") {
     return makeShadowRoutes(factory, json, proxy_, *extraProvider_);
+  } else if (type == "SaltedFailoverRoute") {
+    auto jPool = json.get_ptr("pool");
+    // Create two children with first one for Normal Route and the second
+    // one for failover route. The Normal route would be Pool Route with
+    // Pool Name and Hash object shared with Failover Route. So insert
+    // pool name and hash object into the Normal Route Json.
+    folly::dynamic newJson = json;
+    folly::dynamic children = folly::dynamic::array;
+    folly::dynamic normalRoute = folly::dynamic::object;
+    normalRoute.insert("type", "PoolRoute");
+    if (jPool->isString()) {
+      normalRoute.insert("pool", jPool->asString());
+    } else if (jPool->isObject()) {
+      normalRoute.insert("pool", *jPool);
+    } else {
+      throwLogic("pool needs to be either a string or an object");
+    }
+    auto jShadows = json.get_ptr("shadows");
+    if (jShadows) {
+      checkLogic(jShadows->isArray(), "shadows must be an array.");
+      normalRoute.insert("shadows", *jShadows);
+    }
+    auto jShadowPolicy = json.get_ptr("shadow_policy");
+    if (jShadowPolicy) {
+      checkLogic(jShadowPolicy->isString(), "shadow_policy must be a string.");
+      normalRoute.insert("shadow_policy", jShadowPolicy->asString());
+    }
+    if (auto jHash = json.get_ptr("hash")) {
+      normalRoute.insert("hash", *jHash);
+    }
+    children.push_back(normalRoute);
+    if (jPool->isString()) {
+      children.push_back("Pool|" + jPool->asString());
+    } else if (jPool->isObject()) {
+      children.push_back(*jPool);
+    } else {
+      throwLogic("pool needs to be either a string or an object");
+    }
+    newJson.erase("children");
+    newJson.insert("children", children);
+    return {makeFailoverRoute(factory, newJson, *extraProvider_)};
   } else if (type == "FailoverRoute") {
     return {makeFailoverRoute(factory, json, *extraProvider_)};
   } else if (type == "PoolRoute") {

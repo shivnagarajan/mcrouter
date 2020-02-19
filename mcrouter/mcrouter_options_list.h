@@ -1,10 +1,10 @@
 /*
- *  Copyright (c) 2014-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 // @nolint
 #ifndef MCROUTER_OPTION_GROUP
 #define MCROUTER_OPTION_GROUP(_sep)
@@ -328,6 +328,24 @@ MCROUTER_OPTION_STRING(
     "ssl-service-identity",
     no_short,
     "The service identity of the destination service when SSL is used")
+
+MCROUTER_OPTION_TOGGLE(
+    ssl_service_identity_authorization_log,
+    false,
+    "ssl-service-identity-authorization-log",
+    no_short,
+    "The configured service identity of the client is compared against the "
+    "service identity of the server in the peer certificate. Log if they "
+    "do not match.")
+
+MCROUTER_OPTION_TOGGLE(
+    ssl_service_identity_authorization_enforce,
+    false,
+    "ssl-service-identity-authorization-log",
+    no_short,
+    "The configured service identity of the client is compared against the "
+    "service identity of the server in the peer certificate. Fail to "
+    "connect if they do not match.")
 
 MCROUTER_OPTION_TOGGLE(
     enable_qos,
@@ -786,6 +804,13 @@ MCROUTER_OPTION_TOGGLE(
     no_short,
     "Enable deterministic selection of the proxy thread to lower the number of"
     "connections between client and server.")
+
+MCROUTER_OPTION_TOGGLE(
+    disable_shard_split_route,
+    false,
+    "disable-shard-split-route",
+    no_short,
+    "Disable shard split route. Ignore shard_splits field in routing config.")
 
 #ifdef ADDITIONAL_OPTIONS_FILE
 #include ADDITIONAL_OPTIONS_FILE

@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include "mcrouter/lib/FailoverErrorsSettings.h"
@@ -25,17 +26,22 @@ std::vector<typename RouterInfo::RouteHandlePtr> getFailoverChildren(
     std::vector<typename RouterInfo::RouteHandlePtr> failover,
     int32_t failoverExptime) {
   std::vector<typename RouterInfo::RouteHandlePtr> children;
+  children.reserve(1 + failover.size());
   children.push_back(std::move(normal));
   for (auto& frh : failover) {
-    auto rh =
-        makeRouteHandle<typename RouterInfo::RouteHandleIf, ModifyExptimeRoute>(
-            std::move(frh), failoverExptime, ModifyExptimeAction::Min);
-    children.push_back(std::move(rh));
+    if (failoverExptime > 0) {
+      auto rh = makeRouteHandle<
+          typename RouterInfo::RouteHandleIf,
+          ModifyExptimeRouteMin>(std::move(frh), failoverExptime);
+      children.push_back(std::move(rh));
+    } else {
+      children.push_back(std::move(frh));
+    }
   }
   return children;
 }
 
-} // detail
+} // namespace detail
 
 template <class RouterInfo>
 typename RouterInfo::RouteHandlePtr createFailoverWithExptimeRoute(
@@ -84,6 +90,6 @@ typename RouterInfo::RouteHandlePtr makeFailoverWithExptimeRoute(
   return makeFailoverRouteDefault<RouterInfo, FailoverRoute>(
       json, std::move(children));
 }
-}
-}
-} // facebook::memcache::mcrouter
+} // namespace mcrouter
+} // namespace memcache
+} // namespace facebook

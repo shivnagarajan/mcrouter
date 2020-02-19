@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #ifndef HAVE_CONFIG_H
@@ -23,10 +24,12 @@ static_assert(false, "mcrouter: invalid build");
 
 #include <folly/Range.h>
 #include <folly/experimental/observer/Observer.h>
+#include <folly/io/async/AsyncTransport.h>
 #include <folly/io/async/EventBase.h>
 
 #include "mcrouter/lib/Reply.h"
 #include "mcrouter/lib/carbon/NoopAdditionalLogger.h"
+#include "mcrouter/lib/network/Transport.h"
 
 #define MCROUTER_RUNTIME_VARS_DEFAULT ""
 #define MCROUTER_STATS_ROOT_DEFAULT "/var/mcrouter/stats"
@@ -170,6 +173,11 @@ startObservingRuntimeVarsFileCustom(
 
 inline bool isInLocalDatacenter(const std::string& /* host */) {
   return false;
+}
+
+inline Transport::SvcIdentAuthCallbackFunc getAuthChecker(
+    const McrouterOptions& opts) {
+  return nullptr;
 }
 
 } // mcrouter

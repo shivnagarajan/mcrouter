@@ -1,13 +1,17 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <functional>
 #include <memory>
+
+#include <folly/io/async/EventBase.h>
+#include <folly/io/async/VirtualEventBase.h>
 
 #include "mcrouter/lib/network/McServerSession.h"
 
@@ -59,7 +63,8 @@ class ConnectionTracker : public McServerSession::StateCallback {
       std::shared_ptr<McServerOnRequest> cb,
       const AsyncMcServerWorkerOptions& options,
       void* userCtxt,
-      const CompressionCodecMap* compressionCodecMap);
+      const CompressionCodecMap* compressionCodecMap,
+      McServerSession::KeepAlive keepAlive = nullptr);
 
   /**
    * Close all connections (sessions)
@@ -91,5 +96,5 @@ class ConnectionTracker : public McServerSession::StateCallback {
   void onCloseFinish(McServerSession& session, bool onAcceptedCalled) final;
   void onShutdown() final;
 };
-}
-} // facebook::memcache
+} // namespace memcache
+} // namespace facebook

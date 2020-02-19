@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <mutex>
@@ -53,6 +54,10 @@ class ProxyStats {
    */
   ExponentialSmoothData<64>& inactiveConnectionClosedIntervalSec() {
     return inactiveConnectionClosedIntervalSec_;
+  }
+
+  ExponentialSmoothData<64>& asyncLogDurationUs() {
+    return asyncLogDurationUs_;
   }
 
   size_t numBinsUsed() const {
@@ -185,6 +190,9 @@ class ProxyStats {
   ExponentialSmoothData<64> durationUpdateUs_;
 
   ExponentialSmoothData<64> inactiveConnectionClosedIntervalSec_;
+
+  // Time spent for asynclog spooling
+  ExponentialSmoothData<64> asyncLogDurationUs_;
 
   // we are wasting some memory here to get faster mapping from stat name to
   // statsBin_[] and statsNumWithinWindow_[] entry. i.e., the statsBin_[]

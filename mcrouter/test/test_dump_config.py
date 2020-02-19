@@ -1,12 +1,8 @@
+#!/usr/bin/env python3
 # Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the MIT license found in the LICENSE
-# file in the root directory of this source tree.
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import os
 import shutil
@@ -40,15 +36,6 @@ class TestDumpConfig(McrouterTestCase):
     def _replace_with_invalid_config(self, config_path):
         os.remove(config_path)
         shutil.copyfile(self.invalid_config, config_path)
-
-    def _is_mcrouter_running(self, mcrouter):
-        try:
-            mcrouter.stats()
-
-            return True
-        except Exception as e:
-            self.assertTrue("Connection reset by peer" in e)
-            return False
 
     def _get_dumped_config_root(self):
         return '{}/mcrouter/0'.format(self.config_dump_root.path)

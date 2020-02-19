@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include "mcrouter/lib/carbon/Result.h"
@@ -124,6 +125,13 @@ inline bool isHardTkoErrorResult(const carbon::Result result) {
  */
 inline bool isTkoResult(const carbon::Result result) {
   return result == carbon::Result::TKO;
+}
+
+/**
+ * Checks whether a reply is either a TKO or hard TKO error.
+ */
+inline bool isTkoOrHardTkoResult(const carbon::Result result) {
+  return isTkoResult(result) || isHardTkoErrorResult(result);
 }
 
 /**

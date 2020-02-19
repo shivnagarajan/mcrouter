@@ -1,12 +1,14 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <memory>
+#include <unordered_map>
 
 #include <folly/File.h>
 #include <folly/Range.h>
@@ -26,12 +28,13 @@ class AsyncLog {
   /**
    * Appends a 'delete' request entry to the asynclog.
    * This call blocks until the entry is written to the file
-   * or an error occurs.
+   * or an error occurs. Returns true if the write was successful, false if not.
    */
-  void writeDelete(
+  bool writeDelete(
       const AccessPoint& ap,
       folly::StringPiece key,
-      folly::StringPiece poolName);
+      folly::StringPiece poolName,
+      std::unordered_map<std::string, uint64_t> attributes = {});
 
  private:
   const McrouterOptions& options_;

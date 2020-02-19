@@ -1,11 +1,13 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #include <chrono>
 
+#include <folly/CppAttributes.h>
 #include <folly/fibers/FiberManagerMap.h>
 #include <folly/init/Init.h>
 #include <folly/io/async/EventBase.h>
@@ -88,10 +90,9 @@ class ThriftHandler : virtual public hellogoodbye::thrift::HelloGoodbyeSvIf {
 };
 
 inline void spawnServer(AsyncMcServer& server) {
-  server.spawn([](
-      size_t /* threadId */,
-      folly::EventBase& evb,
-      AsyncMcServerWorker& worker) {
+  server.spawn([](size_t /* threadId */,
+                  folly::EventBase& evb,
+                  AsyncMcServerWorker& worker) {
     worker.setOnRequest(HelloGoodbyeRequestHandler<HelloGoodbyeOnRequest>());
 
     while (worker.isAlive() || worker.writesPending()) {
@@ -108,7 +109,7 @@ AsyncMcServer::Options getOpts(uint16_t port) {
   return opts;
 }
 
-void testClientServer() {
+FOLLY_MAYBE_UNUSED void testClientServer() {
   // Run simple HelloGoodbye server
   AsyncMcServer server(getOpts(kPort));
   spawnServer(server);
@@ -129,7 +130,6 @@ void testClientServer() {
           LOG(ERROR) << "Unexpected result: "
                      << carbon::resultToString(reply.result());
         }
-
       });
     } else {
       fm.addTask([&client, i]() {
@@ -170,7 +170,7 @@ void sendHelloRequestSync(
   baton.wait();
 }
 
-void testRouter() {
+FOLLY_MAYBE_UNUSED void testRouter() {
   // Run 2 simple HelloGoodbye server
   AsyncMcServer server1(getOpts(kPort));
   spawnServer(server1);
@@ -221,7 +221,7 @@ void testRouter() {
   }
 }
 
-void testCarbonLookasideRouter() {
+FOLLY_MAYBE_UNUSED void testCarbonLookasideRouter() {
   // Run 2 simple HelloGoodbye server
   AsyncMcServer server1(getOpts(kPort));
   spawnServer(server1);
@@ -288,7 +288,6 @@ std::thread startThriftServer(
     auto handler = std::make_shared<ThriftHandler>();
     server->setInterface(handler);
     server->setPort(port);
-    server->enableRocketServer(true);
     server->setNumIOWorkerThreads(1);
     server->addRoutingHandler(
         std::make_unique<apache::thrift::RSRoutingHandler>());
@@ -299,7 +298,7 @@ std::thread startThriftServer(
   return serverThread;
 }
 
-void testCarbonThriftServer() {
+FOLLY_MAYBE_UNUSED void testCarbonThriftServer() {
   // Run one simple HelloGoodbye thrift server.
   auto server1 = std::make_shared<apache::thrift::ThriftServer>();
   auto server2 = std::make_shared<apache::thrift::ThriftServer>();
@@ -360,7 +359,7 @@ void testCarbonThriftServer() {
   server2Thread.join();
 }
 
-} // anonymous
+} // namespace
 
 int main(int argc, char* argv[]) {
   folly::init(&argc, &argv);

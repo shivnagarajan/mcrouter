@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <memory>
@@ -72,6 +73,7 @@ makeShadowRoutes(
   }
 
   ShadowData<RouterInfo> data;
+  data.reserve(jshadows->size());
   for (auto& shadow : *jshadows) {
     if (!shadow.isObject()) {
       MC_LOG_FAILURE(
@@ -140,6 +142,6 @@ makeShadowRoutes(
   return children;
 }
 
-} // mcrouter
-} // memcache
-} // facebook
+} // namespace mcrouter
+} // namespace memcache
+} // namespace facebook

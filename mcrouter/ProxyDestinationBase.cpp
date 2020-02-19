@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #include "ProxyDestinationBase.h"
 
 #include <chrono>
@@ -37,16 +38,14 @@ ProxyDestinationBase::ProxyDestinationBase(
     ProxyBase& proxy,
     std::shared_ptr<const AccessPoint> ap,
     std::chrono::milliseconds timeout,
-    uint64_t qosClass,
-    uint64_t qosPath,
-    folly::StringPiece routerInfoName)
+    uint32_t qosClass,
+    uint32_t qosPath)
     : proxy_(proxy),
       accessPoint_(std::move(ap)),
       shortestConnectTimeout_(timeout),
       shortestWriteTimeout_(timeout),
       qosClass_(qosClass),
-      qosPath_(qosPath),
-      routerInfoName_(routerInfoName) {
+      qosPath_(qosPath) {
   proxy_.stats().increment(num_servers_new_stat);
   proxy_.stats().increment(num_servers_stat);
   if (accessPoint()->useSsl()) {
@@ -93,7 +92,7 @@ bool ProxyDestinationBase::maySend(carbon::Result& tkoReason) const {
 void ProxyDestinationBase::onTkoEvent(TkoLogEvent event, carbon::Result result)
     const {
   auto logUtil = [this, result](folly::StringPiece eventStr) {
-    VLOG(3) << accessPoint_->toHostPortString() << " " << eventStr
+    VLOG(2) << accessPoint_->toHostPortString() << " " << eventStr
             << ". Total hard TKOs: " << tracker_->globalTkos().hardTkos
             << "; soft TKOs: " << tracker_->globalTkos().softTkos
             << ". Reply: " << carbon::resultToString(result);
@@ -303,7 +302,7 @@ void ProxyDestinationBase::setState(State newState) {
   }
 
   auto logUtil = [this](const char* s) {
-    VLOG(3) << "server " << key_ << " " << s << " ("
+    VLOG(3) << "server " << ProxyDestinationKey(*this).str() << " " << s << " ("
             << proxy().stats().getValue(num_servers_up_stat) << " of "
             << proxy().stats().getValue(num_servers_stat) << ")";
   };

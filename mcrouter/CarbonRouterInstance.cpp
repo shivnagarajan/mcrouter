@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #include "CarbonRouterInstance.h"
 
 #include <folly/io/async/EventBase.h>
@@ -17,22 +18,6 @@ namespace memcache {
 namespace mcrouter {
 
 namespace detail {
-
-McrouterManager::McrouterManager() {
-  scheduleSingletonCleanup();
-  // Instantiate AuxiliaryCPUThreadPoolSingleton to make sure that it gets
-  // destroyed after McrouterManager is destroyed.
-  AuxiliaryCPUThreadPoolSingleton::try_get();
-}
-
-McrouterManager::~McrouterManager() {
-  freeAllMcrouters();
-}
-
-void McrouterManager::freeAllMcrouters() {
-  std::lock_guard<std::mutex> lg(mutex_);
-  mcrouters_.clear();
-}
 
 bool isValidRouterName(folly::StringPiece name) {
   if (name.empty()) {
@@ -49,16 +34,13 @@ bool isValidRouterName(folly::StringPiece name) {
   return true;
 }
 
-folly::Singleton<McrouterManager> gMcrouterManager;
-
-} // detail
+} // namespace detail
 
 void freeAllRouters() {
-  if (auto manager = detail::gMcrouterManager.try_get()) {
+  if (auto manager = detail::McrouterManager::getSingletonInstance()) {
     manager->freeAllMcrouters();
   }
 }
-
-} // mcrouter
-} // memcache
-} // facebook
+} // namespace mcrouter
+} // namespace memcache
+} // namespace facebook

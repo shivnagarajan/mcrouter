@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <atomic>
@@ -27,8 +28,9 @@
 namespace facebook {
 namespace memcache {
 namespace mcrouter {
-
+namespace detail {
 class McrouterManager;
+}
 
 class ProxyThread;
 
@@ -134,6 +136,10 @@ class CarbonRouterInstance
 
   const std::vector<Proxy<RouterInfo>*>& getProxies() const;
 
+  folly::StringPiece routerInfoName() const override {
+    return RouterInfo::name;
+  }
+
   CarbonRouterInstance(const CarbonRouterInstance&) = delete;
   CarbonRouterInstance& operator=(const CarbonRouterInstance&) = delete;
   CarbonRouterInstance(CarbonRouterInstance&&) noexcept = delete;
@@ -232,7 +238,7 @@ class CarbonRouterInstance
  private:
   friend class LegacyPrivateAccessor;
   friend class CarbonRouterClient<RouterInfo>;
-  friend class McrouterManager;
+  friend class detail::McrouterManager;
   friend class ProxyDestinationMap;
 };
 
@@ -241,8 +247,8 @@ class CarbonRouterInstance
  */
 void freeAllRouters();
 
-} // mcrouter
-} // memcache
-} // facebook
+} // namespace mcrouter
+} // namespace memcache
+} // namespace facebook
 
 #include "CarbonRouterInstance-inl.h"

@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <array>
@@ -45,6 +46,7 @@ class ProxyDestination : public ProxyDestinationBase {
   using ConnectionStatusCallbacks =
       typename Transport::ConnectionStatusCallbacks;
   using RequestStatusCallbacks = typename Transport::RequestStatusCallbacks;
+  using AuthorizationCallbacks = typename Transport::AuthorizationCallbacks;
   using RequestQueueStats = typename Transport::RequestQueueStats;
 
   ~ProxyDestination();
@@ -105,9 +107,8 @@ class ProxyDestination : public ProxyDestinationBase {
       ProxyBase& proxy,
       std::shared_ptr<AccessPoint> ap,
       std::chrono::milliseconds timeout,
-      uint64_t qosClass,
-      uint64_t qosPath,
-      folly::StringPiece routerInfoName);
+      uint32_t qosClass,
+      uint32_t qosPath);
 
   Transport& getTransport();
   void initializeTransport();
@@ -116,9 +117,8 @@ class ProxyDestination : public ProxyDestinationBase {
       ProxyBase& proxy,
       std::shared_ptr<AccessPoint> ap,
       std::chrono::milliseconds timeout,
-      uint64_t qosClass,
-      uint64_t qosPath,
-      folly::StringPiece routerInfoName);
+      uint32_t qosClass,
+      uint32_t qosPath);
 
   // Process tko, stats and duration timer.
   void onReply(

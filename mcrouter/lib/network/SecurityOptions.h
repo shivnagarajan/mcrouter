@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <folly/Range.h>
@@ -72,6 +73,11 @@ struct SecurityOptions {
    * Service identity of the destination service when SSL is used.
    */
   std::string sslServiceIdentity;
+
+  /**
+   * Client service identity must match server service identity
+   */
+  bool sslAuthorizationEnforce{false};
 
   /**
    * Whether TFO is enabled for SSL connections

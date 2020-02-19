@@ -1,12 +1,11 @@
 /*
- *  Copyright (c) 2014-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- *  This source code is licensed under the MIT license found in the LICENSE
- *  file in the root directory of this source tree.
- *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
-// @nolint
 
+// @nolint
 /**
  * Basic stats/information
  */
@@ -51,6 +50,10 @@ STUI(num_suspect_servers, 0, 1)
 // Running total of connection opens/closes
 STUI(num_connections_opened, 0, 1)
 STUI(num_connections_closed, 0, 1)
+// Running total of connection not authorized
+STUI(num_authorization_failures, 0, 1)
+// Running total of connection authorized
+STUI(num_authorization_successes, 0, 1)
 // Running total of ssl connection opens/closes.
 STUI(num_ssl_connections_opened, 0, 1)
 STUI(num_ssl_connections_closed, 0, 1)
@@ -139,8 +142,12 @@ STUI(fibers_stack_high_watermark, 0, 0)
  * Stats about routing
  */
 #define GROUP ods_stats | basic_stats
-// number of requests that were spooled to disk
+// number of requests that were attempted to be spooled to disk
 STUI(asynclog_requests, 0, 1)
+// number of requests that were spooled successfully
+STUI(asynclog_spool_success, 0, 1)
+// avg time spent for asynclog spooling
+STAT(asynclog_duration_us, stat_double, 0, .dbl = 0.0)
 // Proxy requests that are currently being routed.
 STUI(proxy_reqs_processing, 0, 1)
 // Proxy requests queued up and not routed yet
@@ -171,14 +178,22 @@ STUIR(request_replied, 0, 1)
 STUIR(client_queue_notifications, 0, 1)
 STUIR(failover_all, 0, 1)
 STUIR(failover_conditional, 0, 1)
-STUIR(failover_all_failed, 0, 1)
 STUIR(failover_rate_limited, 0, 1)
 STUIR(failover_inorder_policy, 0, 1)
 STUIR(failover_inorder_policy_failed, 0, 1)
 STUIR(failover_least_failures_policy, 0, 1)
 STUIR(failover_least_failures_policy_failed, 0, 1)
+STUIR(failover_deterministic_order_policy, 0, 1)
+STUIR(failover_deterministic_order_policy_failed, 0, 1)
+STUIR(custom_policy_attempts, 0, 1)
 STUIR(failover_custom_policy, 0, 1)
 STUIR(failover_custom_policy_failed, 0, 1)
+STUIR(failover_custom_deadline_exceeded, 0, 1)
+STUIR(failover_custom_limit_reached, 0, 1)
+STUIR(failover_custom_master_region, 0, 1)
+STUIR(failover_custom_master_region_skipped, 0, 1)
+STUIR(failover_custom_master_region_invalid, 0, 1)
+STUIR(custom_policy_large_assoc_reqs, 0, 1)
 #undef GROUP
 #define GROUP ods_stats | count_stats
 STUI(result_error_count, 0, 1)
@@ -199,11 +214,17 @@ STUI(result_local_error_count, 0, 1)
 STUI(result_local_error_all_count, 0, 1)
 STUI(result_remote_error_count, 0, 1)
 STUI(result_remote_error_all_count, 0, 1)
+STUI(failover_num_collisions, 0, 1)
 STUI(failover_conditional_count, 0, 1)
-STUI(failover_custom_deadline_exceeded, 0, 1)
-STUI(failover_custom_limit_reached, 0, 1)
-STUI(failover_custom_master_region, 0, 1)
-STUI(failover_custom_master_region_skipped, 0, 1)
+STUIR(failover_policy_result_error, 0, 1)
+STUIR(failover_all_failed, 0, 1)
+STUIR(failover_policy_tko_error, 0, 1)
+STUI(custom_policy_attempts_count, 0, 1)
+STUI(failover_custom_deadline_exceeded_count, 0, 1)
+STUI(failover_custom_limit_reached_count, 0, 1)
+STUI(failover_custom_master_region_count, 0, 1)
+STUI(failover_custom_master_region_skipped_count, 0, 1)
+STUI(custom_policy_large_assoc_reqs_count, 0, 1)
 #undef GROUP
 #define GROUP ods_stats | detailed_stats | rate_stats
 STUIR(final_result_error, 0, 1)

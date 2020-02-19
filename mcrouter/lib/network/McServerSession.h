@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <fizz/server/AsyncFizzServer.h>
@@ -45,6 +46,7 @@ class McServerSession
   folly::SafeIntrusiveListHook hook_;
 
  public:
+  using KeepAlive = folly::Executor::KeepAlive<folly::VirtualEventBase>;
   using Queue =
       folly::CountedIntrusiveList<McServerSession, &McServerSession::hook_>;
 
@@ -154,7 +156,9 @@ class McServerSession
       const AsyncMcServerWorkerOptions& options,
       void* userCtxt,
       McServerSession::Queue* queue,
-      const CompressionCodecMap* codecMap = nullptr);
+      const CompressionCodecMap* codecMap = nullptr,
+      KeepAlive keepAlive = nullptr);
+  //      folly::VirtualEventBase* virtualEventBase = nullptr);
 
   /**
    * Set appropriate socket options on an AsyncSocket
@@ -215,6 +219,13 @@ class McServerSession
   }
 
   /**
+   * Get the socket's local address
+   */
+  const folly::SocketAddress getLocalAddress() const noexcept {
+    return transport_->getLocalAddress();
+  }
+
+  /**
    * @return  the client's common name obtained from the
    *          SSL cert if this is an SSL session. Else it
    *          returns empty string.
@@ -271,6 +282,9 @@ class McServerSession
 
   folly::AsyncTransportWrapper::UniquePtr transport_;
   folly::EventBase& eventBase_;
+  // When using the virtual event base mode, McServerSession is kept
+  // alive by the KeepAlive
+  KeepAlive keepAlive_;
   std::shared_ptr<McServerOnRequest> onRequest_;
   StateCallback& stateCb_;
 
@@ -406,7 +420,7 @@ class McServerSession
    */
   void processMultiOpEnd();
 
-  /* TAsyncTransport's readCallback */
+  /* AsyncTransport's readCallback */
   void getReadBuffer(void** bufReturn, size_t* lenReturn) final;
   void readDataAvailable(size_t len) noexcept final;
   void readEOF() noexcept final;
@@ -447,7 +461,7 @@ class McServerSession
 
   void completeWrite();
 
-  /* TAsyncTransport's writeCallback */
+  /* AsyncTransport's writeCallback */
   void writeSuccess() noexcept final;
   void writeErr(
       size_t bytesWritten,
@@ -492,7 +506,9 @@ class McServerSession
       StateCallback& stateCb,
       const AsyncMcServerWorkerOptions& options,
       void* userCtxt,
-      const CompressionCodecMap* codecMap);
+      const CompressionCodecMap* codecMap,
+      KeepAlive keepAlive = nullptr);
+  //     folly::VirtualEventBase* virtualEventBase = nullptr);
 
   McServerSession(const McServerSession&) = delete;
   McServerSession& operator=(const McServerSession&) = delete;

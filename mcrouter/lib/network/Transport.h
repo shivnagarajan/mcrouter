@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <cstddef>
@@ -14,6 +15,7 @@
 #include <folly/io/async/EventBase.h>
 
 #include "mcrouter/lib/network/ConnectionDownReason.h"
+#include "mcrouter/lib/network/ConnectionOptions.h"
 
 // forward declarations
 namespace folly {
@@ -60,6 +62,9 @@ class Transport {
   using FlushList = boost::intrusive::list<
       folly::EventBase::LoopCallback,
       boost::intrusive::constant_time_size<false>>;
+
+  using SvcIdentAuthCallbackFunc = std::function<
+      bool(const folly::AsyncTransportWrapper&, const ConnectionOptions&)>;
 
   /**
    * Struct containing callbacks regarding connection state changes.
@@ -110,6 +115,19 @@ class Transport {
   };
 
   /**
+   * Struct containing callbacks regarding client authorization.
+   */
+  struct AuthorizationCallbacks {
+    /*
+     * Will be called whenever client successfully connects to the
+     * server and client authorization has been configured. Returning true
+     * means that the session has been authorized.
+     * Can be nullptr.
+     */
+    SvcIdentAuthCallbackFunc onAuthorize;
+  };
+
+  /**
    * Holds information about number of requests inflight and pending.
    */
   struct RequestQueueStats {
@@ -151,6 +169,11 @@ class Transport {
    * Set callbacks for when requests state change.
    */
   virtual void setRequestStatusCallbacks(RequestStatusCallbacks callbacks) = 0;
+
+  /**
+   * Set callbacks to autorize connections.
+   */
+  virtual void setAuthorizationCallbacks(AuthorizationCallbacks callbacks) = 0;
 
   /**
    * Set throttling options.
@@ -196,7 +219,7 @@ class Transport {
   virtual const folly::AsyncTransportWrapper* getTransport() const = 0;
 
   /**
-   * Return retransmits information about this conneciton.
+   * Return retransmit information about this connection.
    *
    * @return  Number of retransmits per KB of data transfered.
    */

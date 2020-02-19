@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <folly/dynamic.h>
@@ -95,6 +96,7 @@ std::shared_ptr<typename RouterInfo::RouteHandleIf> createHashRoute(
         jtags->size() == rh.size(),
         "HashRoute: number of tags doesn't match number of route handles");
 
+    endpoints.reserve(jtags->size());
     for (const auto& jtag : *jtags) {
       checkLogic(jtag.isString(), "HashRoute: tag is not a string");
       endpoints.push_back(jtag.stringPiece());
@@ -128,6 +130,6 @@ std::shared_ptr<typename RouterInfo::RouteHandleIf> makeHashRoute(
       json, std::move(children), factory.getThreadId());
 }
 
-} // mcrouter
-} // memcache
-} // facebook
+} // namespace mcrouter
+} // namespace memcache
+} // namespace facebook

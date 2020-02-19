@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #include "ConnectionTracker.h"
 
 namespace facebook {
@@ -16,7 +17,8 @@ McServerSession& ConnectionTracker::add(
     std::shared_ptr<McServerOnRequest> cb,
     const AsyncMcServerWorkerOptions& options,
     void* userCtxt,
-    const CompressionCodecMap* compressionCodecMap) {
+    const CompressionCodecMap* compressionCodecMap,
+    McServerSession::KeepAlive keepAlive) {
   if (maxConns_ != 0 && sessions_.size() >= maxConns_) {
     evict();
   }
@@ -28,7 +30,8 @@ McServerSession& ConnectionTracker::add(
       options,
       userCtxt,
       &sessions_,
-      compressionCodecMap);
+      compressionCodecMap,
+      std::move(keepAlive));
 
   return session;
 }

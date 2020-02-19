@@ -10,11 +10,10 @@ m4_append([mcrouter_version], [mcrouter_version_suffix])
 AC_INIT([mcrouter], [mcrouter_version], mcrouter@fb.com)
 
 AC_ARG_VAR([FBTHRIFT_BIN], [Path to FBThrift compiler])
-AC_ARG_VAR([FBTHRIFT_TEMPLATES], [Path to FBThrift mustache templates folder])
 AC_CHECK_PROG(have_fbthrift, thrift1, yes, no, path = $FBTHRIFT_BIN)
 AS_IF(
   [test "x$have_fbthrift" = "xyes"],
-  [FBTHRIFT="$FBTHRIFT_BIN/thrift1 --templates $FBTHRIFT_TEMPLATES "],
+  [FBTHRIFT="$FBTHRIFT_BIN/thrift1 "],
   [AC_MSG_ERROR([Unable to find FBThrift Compiler])]
 )
 AC_SUBST([FBTHRIFT])
@@ -102,8 +101,8 @@ if test "$mcrouter_cv_prog_cc_gflags" != "yes"; then
 fi
 
 # check for boost libs
-AX_BOOST_BASE([1.51.0], [], [AC_MSG_ERROR(
-              [Please install boost >= 1.51.0 (context, filesystem, program_options, regex and system)])])
+AX_BOOST_BASE([1.65.1], [], [AC_MSG_ERROR(
+              [Please install boost >= 1.65.1 (context, filesystem, program_options, regex and system)])])
 # TODO: also check boost::ctx, not only boost::context
 AX_BOOST_CONTEXT
 AX_BOOST_FILESYSTEM

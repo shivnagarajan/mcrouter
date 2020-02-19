@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <chrono>
@@ -42,12 +43,20 @@ class McServerOnRequest;
 class AsyncMcServerWorker {
  public:
   /**
-   * @param opts       Options
-   * @param eventBase  eventBase that will process socket events
+   * @param opts             Options
+   * @param eventBase        eventBase that will process socket events
    */
   explicit AsyncMcServerWorker(
       AsyncMcServerWorkerOptions opts,
       folly::EventBase& eventBase);
+
+  /**
+   * @param opts             Options
+   * @param virtualEventBase Pointer to virtual event base, defaults to nullptr
+   */
+  explicit AsyncMcServerWorker(
+      AsyncMcServerWorkerOptions opts,
+      folly::VirtualEventBase* virtualEventBase);
 
   /**
    * Moves in ownership of an externally accepted client socket.
@@ -203,7 +212,12 @@ class AsyncMcServerWorker {
       void* userCtxt);
 
   AsyncMcServerWorkerOptions opts_;
-  folly::EventBase& eventBase_;
+  folly::EventBase* eventBase_;
+  folly::VirtualEventBase* virtualEventBase_;
+
+  folly::EventBase* getEventBase() {
+    return virtualEventBase_ ? &virtualEventBase_->getEventBase() : eventBase_;
+  }
 
   std::shared_ptr<McServerOnRequest> onRequest_;
 

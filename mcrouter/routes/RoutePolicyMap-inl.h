@@ -1,9 +1,10 @@
 /*
  * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the LICENSE
- * file in the root directory of this source tree.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
+
 #pragma once
 
 #include <algorithm>
@@ -44,7 +45,7 @@ std::vector<std::shared_ptr<RouteHandleIf>> overrideItems(
   return original;
 }
 
-} // detail
+} // namespace detail
 
 template <class RouteHandleIf>
 RoutePolicyMap<RouteHandleIf>::RoutePolicyMap(
@@ -52,6 +53,7 @@ RoutePolicyMap<RouteHandleIf>::RoutePolicyMap(
         clusters) {
   // wildcards of all clusters
   std::vector<std::shared_ptr<RouteHandleIf>> wildcards;
+  wildcards.reserve(clusters.size());
   // Trie with aggregated policies from all clusters
   Trie<std::vector<std::pair<size_t, std::shared_ptr<RouteHandleIf>>>> t;
 
@@ -90,6 +92,6 @@ RoutePolicyMap<RouteHandleIf>::getTargetsForKey(folly::StringPiece key) const {
   auto result = ut_.findPrefix(key);
   return result == ut_.end() ? emptyV_ : result->second;
 }
-}
-}
-} // facebook::memcache::mcrouter
+} // namespace mcrouter
+} // namespace memcache
+} // namespace facebook
